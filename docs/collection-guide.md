@@ -38,7 +38,7 @@ python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
   --decks meta_decks.json
 ```
 
-If the URL only works inside your browser session, save the JSON response to a file instead. `--collection-cookie` exists for advanced local use, but avoid putting cookies in shell history, commits, screenshots, or bug reports.
+If the URL only works inside your browser session, save the JSON response to a file instead. For advanced local use, a Cookie header can be supplied via the `HS_COLLECTION_COOKIE` environment variable (preferred — it stays out of shell history) or the `--collection-cookie` flag. Never put cookies in commits, screenshots, or bug reports.
 
 ## Option 2: Deck-tracker export
 

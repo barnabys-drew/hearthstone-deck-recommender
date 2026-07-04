@@ -539,7 +539,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--collection", help="Path to your collection (HSReplay/HDT/Firestone export, or {dbfId: count})")
     parser.add_argument("--collection-url", help="URL returning collection JSON, such as the HSReplay account_lo JSON response")
-    parser.add_argument("--collection-cookie", help="Optional Cookie header for private collection URLs (avoid saving this in shell history)")
+    parser.add_argument("--collection-cookie", help="Optional Cookie header for private collection URLs; prefer the HS_COLLECTION_COOKIE env var to keep it out of shell history")
     parser.add_argument("--decks", required=True, help="Meta decks: JSON list of {name,class,deckstring,winrate?} or a text file of deck codes")
     parser.add_argument("--cards-json", help="Local HearthstoneJSON cards.collectible.json (avoids network)")
     parser.add_argument("--no-fetch", action="store_true", help="Do not fetch HearthstoneJSON")
@@ -555,7 +555,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        owned = load_collection_source(args.collection, args.collection_url, cookie=args.collection_cookie)
+        cookie = args.collection_cookie or os.environ.get("HS_COLLECTION_COOKIE")
+        owned = load_collection_source(args.collection, args.collection_url, cookie=cookie)
         decks = load_decks(args.decks)
         if not decks:
             raise ValueError("No decks found in --decks input")

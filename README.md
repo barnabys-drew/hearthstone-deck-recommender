@@ -3,9 +3,9 @@
 > Portable AI-agent skills for building Hearthstone deck codes and choosing the cheapest competitive deck to craft from your collection.
 
 [![CI](https://github.com/barnabys-drew/hearthstone-ai-cli-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/barnabys-drew/hearthstone-ai-cli-skills/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Dependencies](https://img.shields.io/badge/dependencies-standard%20library-only-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+![Dependencies: standard library only](https://img.shields.io/badge/dependencies-standard%20library%20only-brightgreen)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 This repository contains two `SKILL.md`-style agent skills that work together:
 

@@ -50,8 +50,9 @@ Try these in order; stop at the first that works for the user.
    like `{"collection": {"<dbfId>": [normal, golden, diamond, signature], ...}, ...}`.
    The script reads this shape directly. If the copied request URL returns JSON directly,
    use `--collection-url "https://...account_lo=..."`; if it is private to your browser
-   session, paste/save the JSON manually or pass `--collection-cookie` with a Cookie
-   header copied from DevTools. Avoid saving Cookie headers in shell history.
+   session, paste/save the JSON manually or supply a Cookie header copied from
+   DevTools — prefer the `HS_COLLECTION_COOKIE` environment variable over the
+   `--collection-cookie` flag so the cookie stays out of shell history.
 2. **Deck-tracker export.** Hearthstone Deck Tracker and Firestone can export the
    collection to JSON/CSV. Any JSON `{dbfId: count}` map, a list of
    `{"dbfId":..., "count":...}` / `{"dbfId":..., "ownedTotal":...}`, or a CSV with a
@@ -103,7 +104,8 @@ text file with one deck code per line and an optional `# Deck Name` comment abov
 Key options:
 
 - `--collection PATH` **or** `--collection-url URL`, plus `--decks PATH` (required).
-- `--collection-cookie COOKIE` can be used with private browser-session collection URLs.
+- `HS_COLLECTION_COOKIE` env var (or `--collection-cookie COOKIE`) for private
+  browser-session collection URLs; the env var keeps the cookie out of history.
 - `--cards-json PATH` uses a local HearthstoneJSON `cards.collectible.json` (needed for
   rarity/dust/names). Without it the script fetches the latest set; use `--no-fetch` to
   stay offline (dust costs then require the local file).

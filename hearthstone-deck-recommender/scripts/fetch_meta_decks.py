@@ -122,6 +122,38 @@ def extract_deck(url: str) -> dict[str, Any] | None:
     }
 
 
+def fetch_decks(
+    listings: list[str] | None = None,
+    *,
+    limit: int = 40,
+    sleep: float = 0.3,
+    one_per_class: bool = False,
+) -> list[dict[str, Any]]:
+    """Crawl deck-site listings and return current decks as {name,class,deckstring,...}."""
+    detail_urls = collect_detail_urls(listings or DEFAULT_LISTINGS, limit)
+    decks: list[dict[str, Any]] = []
+    seen_codes: set[str] = set()
+    seen_classes: set[str] = set()
+    for url in detail_urls:
+        if len(decks) >= limit:
+            break
+        deck = extract_deck(url)
+        time.sleep(max(0.0, sleep))
+        if not deck:
+            continue
+        if deck["deckstring"] in seen_codes:
+            continue
+        if one_per_class:
+            cls = deck.get("class") or "?"
+            if cls in seen_classes:
+                continue
+            seen_classes.add(cls)
+        deck.setdefault("source_rank", len(decks) + 1)
+        seen_codes.add(deck["deckstring"])
+        decks.append(deck)
+    return decks
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Fetch current Standard deck candidates as deckstrings.")
     parser.add_argument("--out", default="meta_decks.json", help="Output JSON path")
@@ -131,32 +163,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--one-per-class", action="store_true", help="Keep only the first deck per class for variety")
     args = parser.parse_args(argv)
 
-    listings = args.listing or DEFAULT_LISTINGS
-    detail_urls = collect_detail_urls(listings, args.limit)
-    if not detail_urls:
-        print("ERROR: no deck detail links found; site layout may have changed.", file=sys.stderr)
+    decks = fetch_decks(
+        args.listing or None,
+        limit=args.limit,
+        sleep=args.sleep,
+        one_per_class=args.one_per_class,
+    )
+    if not decks:
+        print("ERROR: no decks found; site layout may have changed.", file=sys.stderr)
         return 2
-
-    decks: list[dict[str, Any]] = []
-    seen_codes: set[str] = set()
-    seen_classes: set[str] = set()
-    for url in detail_urls:
-        if len(decks) >= args.limit:
-            break
-        deck = extract_deck(url)
-        time.sleep(max(0.0, args.sleep))
-        if not deck:
-            continue
-        if deck["deckstring"] in seen_codes:
-            continue
-        if args.one_per_class:
-            cls = deck.get("class") or "?"
-            if cls in seen_classes:
-                continue
-            seen_classes.add(cls)
-        deck.setdefault("source_rank", len(decks) + 1)
-        seen_codes.add(deck["deckstring"])
-        decks.append(deck)
 
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump({"decks": decks}, f, indent=2)

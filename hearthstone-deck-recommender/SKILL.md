@@ -15,21 +15,26 @@ collection is the part that needs care. The dust math and ranking are handled by
 ## Workflow
 
 1. **Get the collection** (see "Getting the collection" below). Save it to `collection.json`.
-2. **Get current top Standard decks as deckstrings** (see "Getting current meta decks").
-   Save them to `meta_decks.json` (or a text file of deck codes).
-3. **Rank** with the bundled script, or use the one-shot wrapper:
+2. **Run the one-shot wrapper.** With no `--decks` it fetches current Standard decks
+   live from a public deck site automatically:
+   ```bash
+   # Live one-shot: fetch decks + card data, rank, print an import block
+   python3 <skill-dir>/scripts/recommend_and_import.py \
+     --collection collection.json \
+     --view visual \
+     --pick-policy close
+   ```
+   To control the candidates instead, save deckstrings to `meta_decks.json`
+   (see "Getting current meta decks") and pass `--decks meta_decks.json`.
+   Ranking-only, against saved candidates:
    ```bash
    python3 <skill-dir>/scripts/rank_decks.py \
      --collection collection.json \
      --decks meta_decks.json
-
-   # One-shot: rank, choose the best deck, and print a Hearthstone import block
-   python3 <skill-dir>/scripts/recommend_and_import.py \
-     --collection collection.json \
-     --decks meta_decks.json \
-     --view visual \
-     --pick-policy close
    ```
+3. **Fall back gracefully.** If the live fetch returns nothing (deck sites change
+   HTML often), browse current top-deck sources, save `meta_decks.json`, and re-run
+   with `--decks`.
 4. **Recommend.** Prefer the visual output. It separates the best overall deck,
    best affordable deck, best close/easy craft, and cheapest deck, then groups
    candidates into dust tiers. Use that to explain the tradeoff instead of
@@ -71,10 +76,11 @@ class, deckstring) from a public deck site and writes `meta_decks.json`:
 python3 <skill-dir>/scripts/fetch_meta_decks.py --out meta_decks.json --limit 40
 ```
 
-Deck sites change their HTML and their front-page decks constantly, so treat this
-as a convenience: if it returns nothing, or you want a specific curated meta,
-assemble `meta_decks.json` by hand or from other sources (below). The ranking
-scripts never depend on the fetcher.
+This is the same fetch `recommend_and_import.py` runs automatically when `--decks`
+is omitted. Deck sites change their HTML and their front-page decks constantly, so
+treat it as a convenience: if it returns nothing, or you want a specific curated
+meta, assemble `meta_decks.json` by hand or from other sources (below) and pass
+`--decks`. `rank_decks.py` itself never fetches decks.
 
 ## Getting current meta decks (manual / other sources)
 

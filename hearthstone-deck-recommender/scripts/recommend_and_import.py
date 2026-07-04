@@ -4,13 +4,14 @@
 This is the tandem workflow between the recommender and deck-builder skills:
 
 1. Load the user's collection from a file or collection JSON URL.
-2. Rank current meta deckstrings by dust needed to complete.
-3. Pick the top recommendation.
+2. Get current meta deckstrings — from `--decks`, or fetched live from a public
+   deck site when `--decks` is omitted (via the sibling `fetch_meta_decks.py`).
+3. Rank them by dust needed to complete and pick the top recommendation.
 4. Print the ranked summary plus a Hearthstone clipboard/import block.
 
-It intentionally still requires a meta-deck input file. Top-deck sites change HTML
-frequently; the surrounding AI skill should browse current sites and save
-`meta_decks.json`, then this deterministic wrapper does the math and output.
+Top-deck sites change HTML frequently. If the live fetch comes back empty, the
+surrounding AI skill should browse current sites and save `meta_decks.json`,
+then re-run with `--decks`.
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ from typing import Any
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
+from fetch_meta_decks import fetch_decks  # type: ignore  # noqa: E402
 from rank_decks import (  # type: ignore  # noqa: E402
     choose_recommendations,
     evaluate_deck,
@@ -122,9 +124,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--collection", help="Path to collection JSON/CSV")
     parser.add_argument("--collection-url", help="URL returning collection JSON, such as HSReplay's account_lo JSON response")
     parser.add_argument("--collection-cookie", help="Optional Cookie header for private collection URLs; prefer the HS_COLLECTION_COOKIE env var to keep it out of shell history")
-    parser.add_argument("--decks", required=True, help="Meta decks JSON/text containing deckstrings")
+    parser.add_argument("--decks", help="Meta decks JSON/text containing deckstrings; omit to fetch current Standard decks live from a public deck site")
+    parser.add_argument("--fetch-limit", type=int, default=25, help="Max decks to collect when fetching live (no --decks)")
+    parser.add_argument("--fetch-listing", action="append", help="Deck-site listing URL(s) for the live fetch (repeatable)")
     parser.add_argument("--cards-json", help="Local HearthstoneJSON cards.collectible.json")
-    parser.add_argument("--no-fetch", action="store_true", help="Do not fetch HearthstoneJSON card data")
+    parser.add_argument("--no-fetch", action="store_true", help="Offline mode: fetch neither HearthstoneJSON card data nor live meta decks")
     parser.add_argument("--sort", choices=["value", "dust", "completion", "meta"], default="value")
     parser.add_argument("--budget", type=int, help="Only recommend decks completable within this much dust")
     parser.add_argument("--max-results", type=int, default=10)
@@ -140,9 +144,21 @@ def main(argv: list[str] | None = None) -> int:
     try:
         cookie = args.collection_cookie or os.environ.get("HS_COLLECTION_COOKIE")
         owned = load_collection_source(args.collection, args.collection_url, cookie=cookie)
-        decks = load_decks(args.decks)
-        if not decks:
-            raise ValueError("No decks found in --decks input")
+        if args.decks:
+            decks = load_decks(args.decks)
+            if not decks:
+                raise ValueError("No decks found in --decks input")
+        elif args.no_fetch:
+            raise ValueError("--decks is required when --no-fetch is set")
+        else:
+            print("No --decks given; fetching current Standard meta decks ...", file=sys.stderr)
+            decks = fetch_decks(args.fetch_listing or None, limit=args.fetch_limit)
+            if not decks:
+                raise ValueError(
+                    "Live meta-deck fetch found nothing (site layout may have changed); "
+                    "assemble meta_decks.json by hand and pass --decks"
+                )
+            print(f"Fetched {len(decks)} deck(s).", file=sys.stderr)
         by_dbf = index_cards(load_cards(args.cards_json, allow_fetch=not args.no_fetch))
         if not by_dbf:
             print("WARNING: no card data; dust costs/names unavailable. Provide --cards-json or allow fetch.", file=sys.stderr)

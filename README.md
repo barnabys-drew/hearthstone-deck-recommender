@@ -20,19 +20,17 @@ The scripts are dependency-free Python and are designed to be used by Codex, Cla
 
 ## Demo: “What should I craft?”
 
-Given:
-
-- a collection export (`collection.json`), and
-- a list of current meta deckstrings (`meta_decks.json`),
-
-run:
+Given a collection export (`collection.json`), run:
 
 ```bash
 python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
   --collection collection.json \
-  --decks meta_decks.json \
   --budget 4000
 ```
+
+With no `--decks`, it fetches a batch of current Standard decks live from a public
+deck site, pulls current card data from HearthstoneJSON, and ranks everything in one
+shot. Pass `--decks meta_decks.json` to use your own candidate list instead.
 
 Output looks like:
 
@@ -106,16 +104,20 @@ What it does:
 Examples:
 
 ```bash
-# Optional: auto-collect current Standard deck candidates
+# One-shot with live data: fetch current Standard decks + card data, rank, import block
+python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
+  --collection collection.json
+
+# Optional: save current Standard deck candidates for reuse/inspection
 python3 hearthstone-deck-recommender/scripts/fetch_meta_decks.py \
   --out meta_decks.json --limit 40
 
-# Ranking only
+# Ranking only, against a saved candidate list
 python3 hearthstone-deck-recommender/scripts/rank_decks.py \
   --collection collection.json \
   --decks meta_decks.json
 
-# One-shot: rank + pick best + print Hearthstone import block
+# One-shot with a live collection URL and saved decks
 python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
   --collection-url "https://...account_lo=..." \
   --decks meta_decks.json \
@@ -216,7 +218,8 @@ docs/         # collection/meta guides and public-release checklist
 ## Limitations
 
 - The project does **not** log into Battle.net, scrape the local Hearthstone client, or bypass account protections.
-- Meta deck recommendations are only as current as the deckstrings you provide. Agents should browse current top-deck sites before generating `meta_decks.json`.
+- The default live fetch scrapes one public deck site (hearthstone-decks.net). Site layouts change; if the fetch comes back empty, browse current top-deck sites and pass `--decks meta_decks.json` instead. Recommendations are only as current as the decks that come in.
+- There is no HSReplay meta-statistics integration (no official public API); win rates appear only when your deck entries include them.
 - Card-name ambiguity is real in Hearthstone. For exact import correctness, DBF IDs are safer than names.
 - Sideboard deckstring support follows the public deckstrings convention but should be tested against real edge-case decklists before heavy public promotion.
 

@@ -148,5 +148,15 @@ class ResolveCollectionCookieTests(unittest.TestCase):
             self.assertEqual(r.read_cookie_file("-"), "session=xyz")
 
 
+class ReadLimitedTests(unittest.TestCase):
+    def test_within_limit_returns_all_bytes(self) -> None:
+        self.assertEqual(r.read_limited(io.BytesIO(b"abc"), 3, "test"), b"abc")
+
+    def test_over_limit_raises(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            r.read_limited(io.BytesIO(b"x" * 11), 10, "test")
+        self.assertIn("size limit", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

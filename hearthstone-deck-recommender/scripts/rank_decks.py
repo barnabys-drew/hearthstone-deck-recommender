@@ -105,7 +105,24 @@ def decode_deckstring(code: str) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # Card data
 # --------------------------------------------------------------------------- #
-def fetch_text(url: str, *, cookie: str | None = None) -> str:
+# Caps on fetched response sizes, so a misbehaving or hostile endpoint cannot
+# exhaust memory. Real payloads are far smaller: HearthstoneJSON card data is
+# ~15 MB, collection JSON well under 1 MB.
+MAX_COLLECTION_RESPONSE_BYTES = 25 * 1024 * 1024
+MAX_CARDS_RESPONSE_BYTES = 50 * 1024 * 1024
+
+
+def read_limited(response: Any, max_bytes: int, what: str) -> bytes:
+    data = response.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise ValueError(
+            f"{what} response exceeded the {max_bytes // (1024 * 1024)} MB size limit; aborting"
+        )
+    return data
+
+
+def fetch_text(url: str, *, cookie: str | None = None,
+               max_bytes: int = MAX_COLLECTION_RESPONSE_BYTES) -> str:
     """Fetch text with a browser-like User-Agent.
 
     Some HSReplay collection URLs are private to the signed-in browser session.
@@ -118,11 +135,12 @@ def fetch_text(url: str, *, cookie: str | None = None) -> str:
         headers["Cookie"] = cookie
     request = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8")
+        return read_limited(response, max_bytes, url).decode("utf-8")
 
 
-def load_json_from_url(url: str, *, cookie: str | None = None) -> Any:
-    text = fetch_text(url, cookie=cookie)
+def load_json_from_url(url: str, *, cookie: str | None = None,
+                       max_bytes: int = MAX_COLLECTION_RESPONSE_BYTES) -> Any:
+    text = fetch_text(url, cookie=cookie, max_bytes=max_bytes)
     stripped = text.lstrip()
     if not stripped.startswith(("{", "[")):
         preview = stripped[:120].replace("\n", " ")
@@ -141,7 +159,7 @@ def load_cards(path: str | None, *, allow_fetch: bool) -> list[dict[str, Any]]:
             return json.load(f)
     if not allow_fetch:
         return []
-    return load_json_from_url(HJSON_LATEST_COLLECTIBLE)
+    return load_json_from_url(HJSON_LATEST_COLLECTIBLE, max_bytes=MAX_CARDS_RESPONSE_BYTES)
 
 
 def index_cards(cards: Iterable[dict[str, Any]]) -> dict[int, dict[str, Any]]:

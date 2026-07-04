@@ -20,9 +20,14 @@ import re
 import sys
 import time
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 USER_AGENT = "Mozilla/5.0 hearthstone-deck-recommender/1.0 (+meta-deck-fetch)"
+
+# Cap on a fetched deck page, so a misbehaving or hostile endpoint cannot
+# exhaust memory. Real listing/detail pages are well under 1 MB.
+MAX_PAGE_BYTES = 5 * 1024 * 1024
 
 # Base64 Hearthstone deckstrings start with the reserved(0)+version(1) bytes and
 # are long. Anchoring on "AAE" avoids matching short unrelated base64 blobs.
@@ -52,7 +57,33 @@ TITLE_RE = re.compile(r"<title>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 def fetch(url: str, timeout: int = 30) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        return response.read().decode("utf-8", "replace")
+        data = response.read(MAX_PAGE_BYTES + 1)
+    if len(data) > MAX_PAGE_BYTES:
+        raise ValueError(
+            f"Deck page {url} exceeded the {MAX_PAGE_BYTES // (1024 * 1024)} MB size limit; aborting"
+        )
+    return data.decode("utf-8", "replace")
+
+
+SENSITIVE_PATH_ROOTS = (
+    "/etc", "/usr", "/bin", "/sbin", "/lib", "/lib64",
+    "/boot", "/sys", "/proc", "/dev", "/root", "/var",
+)
+
+
+def is_sensitive_out_path(path: str, home: Path | None = None) -> bool:
+    """True for output paths that could clobber system files or home dotfiles."""
+    resolved = Path(path).expanduser().resolve()
+    for root in SENSITIVE_PATH_ROOTS:
+        root_path = Path(root)
+        if resolved == root_path or root_path in resolved.parents:
+            return True
+    home = (home or Path.home()).resolve()
+    try:
+        relative = resolved.relative_to(home)
+    except ValueError:
+        return False
+    return any(part.startswith(".") for part in relative.parts)
 
 
 def guess_class(url: str, title: str) -> str | None:
@@ -161,7 +192,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--listing", action="append", help="Listing URL(s) to crawl (repeatable)")
     parser.add_argument("--sleep", type=float, default=0.3, help="Delay between requests (be polite)")
     parser.add_argument("--one-per-class", action="store_true", help="Keep only the first deck per class for variety")
+    parser.add_argument("--force", action="store_true", help="Allow writing --out to system paths or home dotfiles")
     args = parser.parse_args(argv)
+
+    if is_sensitive_out_path(args.out) and not args.force:
+        print(
+            f"ERROR: refusing to write to sensitive path {args.out!r} "
+            "(system directory or home dotfile); pass --force to override.",
+            file=sys.stderr,
+        )
+        return 2
 
     decks = fetch_decks(
         args.listing or None,

@@ -246,6 +246,11 @@ def decode_deckstring(code: str) -> dict[str, Any]:
     }
 
 
+# Cap on the fetched HearthstoneJSON payload, so a misbehaving or hostile
+# endpoint cannot exhaust memory. The real card set is ~15 MB.
+MAX_CARDS_RESPONSE_BYTES = 50 * 1024 * 1024
+
+
 def load_cards(path: str | None, *, allow_fetch: bool) -> list[dict[str, Any]]:
     if path:
         with open(path, "r", encoding="utf-8") as f:
@@ -257,7 +262,12 @@ def load_cards(path: str | None, *, allow_fetch: bool) -> list[dict[str, Any]]:
         headers={"User-Agent": "hearthstone-deck-builder-skill/1.0 (+https://hearthstonejson.com)"},
     )
     with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
+        data = response.read(MAX_CARDS_RESPONSE_BYTES + 1)
+    if len(data) > MAX_CARDS_RESPONSE_BYTES:
+        raise ValueError(
+            f"HearthstoneJSON response exceeded the {MAX_CARDS_RESPONSE_BYTES // (1024 * 1024)} MB size limit; aborting"
+        )
+    return json.loads(data.decode("utf-8"))
 
 
 def build_indexes(cards: Iterable[dict[str, Any]]) -> tuple[dict[str, list[dict[str, Any]]], dict[int, dict[str, Any]]]:

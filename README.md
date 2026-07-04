@@ -59,6 +59,14 @@ AAECAR8...
 
 Copy the deck code/import block, open Hearthstone, create a new deck, and accept the clipboard prompt.
 
+The visual recommendation view separates:
+
+- 🏆 **Best overall** from the fetched meta sample
+- ✅ **Best deck you can afford** with detected/provided dust
+- 🎯 **Best close/easy craft** (default import pick)
+- 💸 **Cheapest deck**
+- Color-coded dust tiers so the shortlist is easier to scan
+
 ---
 
 ## Skills
@@ -111,7 +119,8 @@ python3 hearthstone-deck-recommender/scripts/rank_decks.py \
 python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
   --collection-url "https://...account_lo=..." \
   --decks meta_decks.json \
-  --budget 4000
+  --view visual \
+  --pick-policy close
 ```
 
 ---

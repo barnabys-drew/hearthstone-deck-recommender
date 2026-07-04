@@ -154,6 +154,7 @@ def main(argv: list[str] | None = None) -> int:
             if cls in seen_classes:
                 continue
             seen_classes.add(cls)
+        deck.setdefault("source_rank", len(decks) + 1)
         seen_codes.add(deck["deckstring"])
         decks.append(deck)
 

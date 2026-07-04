@@ -99,3 +99,15 @@ cleanly rather than guessing, and de-duplicates by deck code. Options:
 - `--listing URL` override/add listing pages (repeatable)
 - `--one-per-class` keep only the first deck per class for variety
 - `--sleep SECONDS` delay between requests
+
+## Visual recommendation output
+
+`recommend_and_import.py --view visual` prints recommendation cards before the import block:
+
+- **Best overall**: earliest/highest-priority deck from the fetched meta sample.
+- **Best affordable**: strongest deck whose dust cost is within detected/provided dust.
+- **Best close/easy craft**: strongest deck within `--close-dust` (default 3200).
+- **Cheapest**: lowest dust cost, regardless of fetched meta order.
+
+Use `--pick-policy` to choose which deck gets the final import block. The default is
+`close`, because it balances competitiveness with being realistic to craft.

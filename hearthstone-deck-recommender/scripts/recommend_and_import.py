@@ -25,8 +25,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
 from rank_decks import (  # type: ignore  # noqa: E402
+    choose_recommendations,
     evaluate_deck,
     format_report,
+    format_visual_report,
     index_cards,
     load_cards,
     load_collection_source,
@@ -40,6 +42,46 @@ def _deckstring(deck: dict[str, Any]) -> str:
     if not code:
         raise ValueError(f"Recommended deck {deck.get('name')!r} has no deckstring")
     return str(code).strip()
+
+
+def detect_available_dust(collection_path: str | None) -> int | None:
+    if not collection_path:
+        return None
+    try:
+        with open(collection_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return None
+    dust = data.get("dust") if isinstance(data, dict) else None
+    return int(dust) if isinstance(dust, (int, float)) else None
+
+
+def choose_import_deck(
+    ranked_all: list[dict[str, Any]],
+    shown: list[dict[str, Any]],
+    *,
+    pick_policy: str,
+    pick: int,
+    available_dust: int | None,
+    close_dust: int,
+) -> dict[str, Any]:
+    if pick_policy == "rank":
+        if pick < 1 or pick > len(shown):
+            raise ValueError(f"--pick must be between 1 and {len(shown)}")
+        return shown[pick - 1]
+    picks = choose_recommendations(ranked_all, available_dust=available_dust, close_dust=close_dust)
+    mapping = {
+        "close": picks["best_close"],
+        "affordable": picks["best_affordable"],
+        "overall": picks["best_overall"],
+        "cheapest": picks["cheapest"],
+    }
+    chosen = mapping[pick_policy]
+    if not chosen:
+        chosen = picks["cheapest"] or picks["best_overall"]
+    if not chosen:
+        raise ValueError("No deck available to import")
+    return chosen
 
 
 def format_import_block(deck: dict[str, Any], *, top_missing: int) -> str:
@@ -82,11 +124,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--decks", required=True, help="Meta decks JSON/text containing deckstrings")
     parser.add_argument("--cards-json", help="Local HearthstoneJSON cards.collectible.json")
     parser.add_argument("--no-fetch", action="store_true", help="Do not fetch HearthstoneJSON card data")
-    parser.add_argument("--sort", choices=["value", "dust", "completion"], default="value")
+    parser.add_argument("--sort", choices=["value", "dust", "completion", "meta"], default="value")
     parser.add_argument("--budget", type=int, help="Only recommend decks completable within this much dust")
     parser.add_argument("--max-results", type=int, default=10)
     parser.add_argument("--top-missing", type=int, default=10)
-    parser.add_argument("--pick", type=int, default=1, help="1-based ranked deck to output as the import block")
+    parser.add_argument("--available-dust", type=int, help="Dust available; defaults to dust in collection JSON when present")
+    parser.add_argument("--close-dust", type=int, default=3200, help="Dust threshold for close/easy craft picks")
+    parser.add_argument("--view", choices=["visual", "table", "both"], default="visual", help="Recommendation output style")
+    parser.add_argument("--pick-policy", choices=["close", "affordable", "overall", "cheapest", "rank"], default="close", help="Which deck to print as the import block")
+    parser.add_argument("--pick", type=int, default=1, help="1-based ranked deck to output when --pick-policy rank")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON with ranked decks and chosen import block")
     args = parser.parse_args(argv)
 
@@ -99,25 +145,40 @@ def main(argv: list[str] | None = None) -> int:
         if not by_dbf:
             print("WARNING: no card data; dust costs/names unavailable. Provide --cards-json or allow fetch.", file=sys.stderr)
 
-        ranked = [evaluate_deck(d, owned, by_dbf) for d in decks]
+        available_dust = args.available_dust if args.available_dust is not None else detect_available_dust(args.collection)
+        ranked_all = []
+        for i, d in enumerate(decks, 1):
+            d = dict(d)
+            d.setdefault("source_rank", i)
+            ranked_all.append(evaluate_deck(d, owned, by_dbf))
         if args.budget is not None:
-            ranked = [d for d in ranked if d["dust_needed"] <= args.budget]
-        ranked = rank(ranked, args.sort)
+            ranked_all = [d for d in ranked_all if d["dust_needed"] <= args.budget]
+        ranked = rank(ranked_all, args.sort)
         if not ranked:
             raise ValueError("No decks matched the budget/filter")
-        if args.pick < 1 or args.pick > len(ranked):
-            raise ValueError(f"--pick must be between 1 and {len(ranked)}")
 
         shown = ranked[: args.max_results]
-        chosen = ranked[args.pick - 1]
+        chosen = choose_import_deck(
+            ranked_all,
+            shown,
+            pick_policy=args.pick_policy,
+            pick=args.pick,
+            available_dust=available_dust,
+            close_dust=args.close_dust,
+        )
         import_block = format_import_block(chosen, top_missing=args.top_missing)
 
         if args.json:
             print(json.dumps({"chosen": chosen, "import_block": import_block, "ranked": shown}, indent=2))
         else:
-            print(format_report(shown, top_missing=args.top_missing))
+            if args.view in {"visual", "both"}:
+                print(format_visual_report(ranked_all, available_dust=available_dust, close_dust=args.close_dust))
+            if args.view == "both":
+                print("\n" + "=" * 72 + "\n")
+            if args.view in {"table", "both"}:
+                print(format_report(shown, top_missing=args.top_missing))
             print("\n" + "=" * 72)
-            print("COPY THIS INTO HEARTHSTONE")
+            print(f"COPY THIS INTO HEARTHSTONE ({args.pick_policy.upper()} PICK)")
             print("=" * 72)
             print(import_block)
             print("\nHow to use: copy the deck code/import block, open Hearthstone, create a new deck, and accept the detected clipboard deck.")

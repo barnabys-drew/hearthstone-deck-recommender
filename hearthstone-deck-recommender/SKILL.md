@@ -26,11 +26,14 @@ collection is the part that needs care. The dust math and ranking are handled by
    # One-shot: rank, choose the best deck, and print a Hearthstone import block
    python3 <skill-dir>/scripts/recommend_and_import.py \
      --collection collection.json \
-     --decks meta_decks.json
+     --decks meta_decks.json \
+     --view visual \
+     --pick-policy close
    ```
-4. **Recommend.** Lead with the cheapest deck that is still competitive. Balance
-   dust cost against win rate / tier: a 0-dust tier-3 deck may be worse advice than a
-   small-craft tier-1 deck. Explain the tradeoff and list the exact missing cards.
+4. **Recommend.** Prefer the visual output. It separates the best overall deck,
+   best affordable deck, best close/easy craft, and cheapest deck, then groups
+   candidates into dust tiers. Use that to explain the tradeoff instead of
+   presenting a flat table as the only answer.
 5. The one-shot wrapper is the tandem flow with `hearthstone-deck-builder`: it uses
    the recommender's math, then prints the chosen deck's deckstring in an import block
    the Hearthstone client can read from the clipboard.
@@ -108,7 +111,9 @@ Key options:
 - `--budget N` shows only decks completable within N dust.
 - `--max-results N`, `--top-missing N`, `--json` for machine-readable output.
 - `scripts/recommend_and_import.py` accepts the same collection/deck/card options, plus
-  `--pick N` to output a different ranked deck as the clipboard import block.
+  `--view visual|table|both`, `--pick-policy close|affordable|overall|cheapest|rank`,
+  `--available-dust`, and `--close-dust`. The wrapper detects `dust` from HSReplay
+  collection JSON when present.
 
 Dust to craft a missing copy: Common 40, Rare 100, Epic 400, Legendary 1600. Core-set
 cards can't be crafted (0 dust) and are flagged as free/leveling cards instead.

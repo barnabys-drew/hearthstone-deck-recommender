@@ -80,11 +80,26 @@ class OfflineWorkflowTests(unittest.TestCase):
             "--cards-json", "examples/cards.sample.json",
             "--no-fetch",
             "--top-missing", "3",
+            "--pick-policy", "cheapest",
         )
         self.assertIn("COPY THIS INTO HEARTHSTONE", result.stdout)
         self.assertIn("### Sample Cheap Tempo", result.stdout)
         self.assertIn("AAEBAQcBBQEBAAA=", result.stdout)
         self.assertIn("# Format: Wild", result.stdout)
+
+    def test_one_shot_visual_view_explains_picks(self) -> None:
+        result = self.run_cmd(
+            "hearthstone-deck-recommender/scripts/recommend_and_import.py",
+            "--collection", "examples/collection.sample.json",
+            "--decks", "examples/meta_decks.sample.json",
+            "--cards-json", "examples/cards.sample.json",
+            "--no-fetch",
+            "--view", "visual",
+        )
+        self.assertIn("# Hearthstone deck recommendation", result.stdout)
+        self.assertIn("🏆 Best overall", result.stdout)
+        self.assertIn("🎯 Best close/easy craft", result.stdout)
+        self.assertIn("## Dust tiers", result.stdout)
 
 
 if __name__ == "__main__":

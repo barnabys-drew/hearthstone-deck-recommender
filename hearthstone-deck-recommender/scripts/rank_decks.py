@@ -365,6 +365,8 @@ def rank(results: list[dict[str, Any]], sort: str) -> list[dict[str, Any]]:
         return sorted(results, key=lambda d: (d["dust_needed"], -_winrate(d)))
     if sort == "completion":
         return sorted(results, key=lambda d: (-d["percent_owned"], d["dust_needed"]))
+    if sort == "meta":
+        return sorted(results, key=_competitiveness_key)
     return sorted(results, key=lambda d: (d["dust_needed"], -_winrate(d)))
 
 
@@ -404,6 +406,132 @@ def format_report(results: list[dict[str, Any]], *, top_missing: int) -> str:
                 lines.append(f"    ... and {len(best['missing']) - top_missing} more")
     return "\n".join(lines)
 
+# --------------------------------------------------------------------------- #
+# Recommendation summaries / visual tiers
+# --------------------------------------------------------------------------- #
+def _meta_rank(deck: dict[str, Any]) -> int:
+    for key in ("meta_rank", "source_rank", "rank"):
+        value = deck.get(key)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    return 10_000
+
+
+def _competitiveness_key(deck: dict[str, Any]) -> tuple[int, float, int]:
+    """Sort key for "best" when we have only deck-site ordering.
+
+    Lower source/meta rank means the deck appeared earlier in the fetched list.
+    Higher win rate breaks ties when present; lower dust breaks final ties.
+    """
+    return (_meta_rank(deck), -_winrate(deck), deck.get("dust_needed", 0))
+
+
+def choose_recommendations(
+    results: list[dict[str, Any]],
+    *,
+    available_dust: int | None = None,
+    close_dust: int = 3200,
+) -> dict[str, dict[str, Any] | None]:
+    if not results:
+        return {"best_overall": None, "best_affordable": None, "best_close": None, "cheapest": None}
+    best_overall = sorted(results, key=_competitiveness_key)[0]
+    cheapest = sorted(results, key=lambda d: (d["dust_needed"], _meta_rank(d)))[0]
+    affordable = [d for d in results if available_dust is not None and d["dust_needed"] <= available_dust]
+    close = [d for d in results if d["dust_needed"] <= close_dust]
+    return {
+        "best_overall": best_overall,
+        "best_affordable": sorted(affordable, key=_competitiveness_key)[0] if affordable else None,
+        "best_close": sorted(close, key=_competitiveness_key)[0] if close else cheapest,
+        "cheapest": cheapest,
+    }
+
+
+def _deck_line(deck: dict[str, Any] | None) -> str:
+    if not deck:
+        return "n/a"
+    cls = deck.get("class") or deck.get("hero_class") or "?"
+    rank_s = f"site #{_meta_rank(deck)}" if _meta_rank(deck) < 10_000 else "site rank n/a"
+    legends = deck.get("missing_legendaries", 0)
+    epics = deck.get("missing_epics", 0)
+    return (
+        f"{deck.get('name', 'Deck')} [{cls}] — {deck.get('dust_needed', '?')} dust, "
+        f"{deck.get('percent_owned', 0):.0f}% owned, missing {legends} leg/{epics} epic ({rank_s})"
+    )
+
+
+def dust_tier(dust: int) -> tuple[str, str]:
+    if dust == 0:
+        return "✅ Ready now", "0 dust"
+    if dust <= 1600:
+        return "🟢 Easy craft", "1–1,600 dust"
+    if dust <= 4000:
+        return "🟡 Close", "1,601–4,000 dust"
+    if dust <= 8000:
+        return "🔵 Moderate", "4,001–8,000 dust"
+    if dust <= 12000:
+        return "🟠 Expensive", "8,001–12,000 dust"
+    return "🔴 Very expensive", "12,001+ dust"
+
+
+def tier_results(results: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    tiers: dict[str, list[dict[str, Any]]] = {}
+    for deck in sorted(results, key=lambda d: (d["dust_needed"], _meta_rank(d))):
+        label, _ = dust_tier(deck["dust_needed"])
+        tiers.setdefault(label, []).append(deck)
+    return tiers
+
+
+def format_visual_report(
+    results: list[dict[str, Any]],
+    *,
+    available_dust: int | None = None,
+    close_dust: int = 3200,
+    tier_limit: int = 4,
+) -> str:
+    picks = choose_recommendations(results, available_dust=available_dust, close_dust=close_dust)
+    lines: list[str] = []
+    lines.append("# Hearthstone deck recommendation")
+    lines.append("")
+    if available_dust is not None:
+        lines.append(f"Available dust detected/provided: {available_dust}")
+    lines.append(f"Close-craft threshold: {close_dust} dust")
+    lines.append("")
+    lines.append("## Picks")
+    lines.append(f"🏆 Best overall from fetched meta sample: {_deck_line(picks['best_overall'])}")
+    if available_dust is not None:
+        lines.append(f"✅ Best deck you can afford: {_deck_line(picks['best_affordable'])}")
+    lines.append(f"🎯 Best close/easy craft: {_deck_line(picks['best_close'])}")
+    lines.append(f"💸 Cheapest deck: {_deck_line(picks['cheapest'])}")
+    lines.append("")
+    chosen = picks["best_close"] or picks["cheapest"] or picks["best_affordable"] or picks["best_overall"]
+    if chosen:
+        lines.append("## Suggested first build")
+        lines.append(_deck_line(chosen))
+        if chosen.get("free_cards_missing"):
+            lines.append(f"Note: {chosen['free_cards_missing']} missing card(s) are Core/free unlocks, not craft dust.")
+        missing = chosen.get("missing", [])[:10]
+        if missing:
+            lines.append("Missing highlights:")
+            for m in missing:
+                cost = f"{m['dust']} dust" if m.get("dust") else "free/Core"
+                lines.append(f"  - {m['need']}x {m['name']} ({m['rarity'].title()}, {cost})")
+        lines.append("")
+    lines.append("## Dust tiers")
+    for label, decks in tier_results(results).items():
+        _, range_label = dust_tier(decks[0]["dust_needed"])
+        lines.append(f"{label} ({range_label})")
+        for deck in decks[:tier_limit]:
+            cls = deck.get("class") or deck.get("hero_class") or "?"
+            lines.append(
+                f"  - {deck.get('name', 'Deck')} [{cls}] — {deck['dust_needed']} dust, "
+                f"{deck['percent_owned']:.0f}% owned, {_meta_rank(deck) if _meta_rank(deck) < 10_000 else 'n/a'} site rank"
+            )
+        if len(decks) > tier_limit:
+            lines.append(f"  ... {len(decks) - tier_limit} more")
+    return "\n".join(lines)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
@@ -415,11 +543,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--decks", required=True, help="Meta decks: JSON list of {name,class,deckstring,winrate?} or a text file of deck codes")
     parser.add_argument("--cards-json", help="Local HearthstoneJSON cards.collectible.json (avoids network)")
     parser.add_argument("--no-fetch", action="store_true", help="Do not fetch HearthstoneJSON")
-    parser.add_argument("--sort", choices=["value", "dust", "completion"], default="value",
-                        help="value/dust: cheapest first; completion: most-owned first")
+    parser.add_argument("--sort", choices=["value", "dust", "completion", "meta"], default="value",
+                        help="value/dust: cheapest first; completion: most-owned first; meta: fetched site order")
     parser.add_argument("--budget", type=int, help="Only show decks completable within this much dust")
     parser.add_argument("--max-results", type=int, default=15)
     parser.add_argument("--top-missing", type=int, default=8, help="How many missing cards to list for the top deck")
+    parser.add_argument("--view", choices=["table", "visual", "both"], default="table", help="Text output style")
+    parser.add_argument("--available-dust", type=int, help="Dust available for affordable/best-build recommendations")
+    parser.add_argument("--close-dust", type=int, default=3200, help="Dust threshold for close/easy craft picks")
     parser.add_argument("--json", action="store_true", help="Emit full JSON instead of the text report")
     args = parser.parse_args(argv)
 
@@ -432,7 +563,11 @@ def main(argv: list[str] | None = None) -> int:
         if not by_dbf:
             print("WARNING: no card data; dust costs/names unavailable. Provide --cards-json or allow fetch.", file=sys.stderr)
 
-        results = [evaluate_deck(d, owned, by_dbf) for d in decks]
+        results = []
+        for i, d in enumerate(decks, 1):
+            d = dict(d)
+            d.setdefault("source_rank", i)
+            results.append(evaluate_deck(d, owned, by_dbf))
         if args.budget is not None:
             results = [d for d in results if d["dust_needed"] <= args.budget]
         results = rank(results, args.sort)[: args.max_results]
@@ -440,7 +575,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             print(json.dumps(results, indent=2))
         else:
-            print(format_report(results, top_missing=args.top_missing))
+            if args.view in {"visual", "both"}:
+                print(format_visual_report(results, available_dust=args.available_dust, close_dust=args.close_dust))
+            if args.view == "both":
+                print("\n" + "=" * 72 + "\n")
+            if args.view in {"table", "both"}:
+                print(format_report(results, top_missing=args.top_missing))
         return 0
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

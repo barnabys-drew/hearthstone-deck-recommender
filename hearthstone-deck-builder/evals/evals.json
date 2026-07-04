@@ -1,0 +1,23 @@
+{
+  "skill_name": "hearthstone-deck-builder",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Build me a current Standard budget Mage deck and give me the Hearthstone import code.",
+      "expected_output": "Uses current card/meta research, produces a legal Mage deck list, and generates a deckstring with the bundled script rather than inventing one.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I have these Hearthstone card DBF IDs. Turn them into a Wild deck code I can paste into the game: 1:2, 2:2, 3:2, 4:1, hero 7.",
+      "expected_output": "Runs the script in offline DBF mode and returns a clipboard-ready import block with code AAEBAQcBBAMBAgMAAA==.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Make a Warrior deck that includes E.T.C. sideboard cards and output the import code.",
+      "expected_output": "Represents sideboard cards in JSON with an owner and verifies the generated deck code by decoding it.",
+      "files": []
+    }
+  ]
+}

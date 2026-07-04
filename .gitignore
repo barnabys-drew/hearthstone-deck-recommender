@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local scratch / data
+*.log
+/tmp/
+cards.collectible.json
+collection.json
+collection.csv
+meta_decks.json
+decks.txt
+
+# OS / editor
+.DS_Store
+*.swp

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Hearthstone Deck Builder"
+  short_description: "Build importable Hearthstone deck codes"
+  default_prompt: "Use $hearthstone-deck-builder to build a current Standard Hearthstone deck with an import code."
+policy:
+  allow_implicit_invocation: true

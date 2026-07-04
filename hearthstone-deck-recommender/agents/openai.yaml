@@ -1,0 +1,6 @@
+interface:
+  display_name: "Hearthstone Deck Recommender"
+  short_description: "Rank meta decks by dust you need"
+  default_prompt: "Use $hearthstone-deck-recommender to find the cheapest competitive Standard deck for my collection."
+policy:
+  allow_implicit_invocation: true

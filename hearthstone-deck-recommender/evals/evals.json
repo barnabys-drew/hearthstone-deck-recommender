@@ -1,0 +1,23 @@
+{
+  "skill_name": "hearthstone-deck-recommender",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Look at the cards on my Hearthstone account and tell me which current competitive Standard deck would be easiest for me to build.",
+      "expected_output": "Explains how to obtain the collection (HSReplay/HDT/Firestone), gathers current top Standard decks with deckstrings, runs rank_decks.py, and recommends the cheapest competitive deck with missing cards and dust cost.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Here is my HSReplay collection export and a list of tier-1 deck codes. Which can I build for the least dust?",
+      "expected_output": "Normalizes the HSReplay collection JSON, ranks the provided decks by dust needed, and reports the cheapest option plus percent owned and missing legendaries.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I have about 4000 dust to spend. Which meta Standard deck should I craft?",
+      "expected_output": "Uses --budget to filter completable decks, balances dust against win rate/tier, and gives a concrete recommendation with the deckstring to import.",
+      "files": []
+    }
+  ]
+}

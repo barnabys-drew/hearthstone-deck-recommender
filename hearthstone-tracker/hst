@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Launcher for hstracker using the project venv; works from any directory.
+DIR="$(dirname "$(readlink -f "$0")")"
+PYTHONPATH="$DIR" exec "$DIR/.venv/bin/python" -m hstracker "$@"

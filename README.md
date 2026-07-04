@@ -35,6 +35,15 @@ The two skills:
 - **`hearthstone-deck-builder`** — build or verify a Hearthstone deck and produce a clipboard-ready import deck code.
 - **`hearthstone-deck-recommender`** — compare your collection against current Standard meta decks and rank which decks are cheapest/easiest to complete.
 
+Also in this repo:
+
+- **[`hearthstone-tracker`](hearthstone-tracker/)** — a personal stats tracker
+  that parses the game's own `Power.log` into SQLite and answers "which decks,
+  matchups, mulligan keeps, and Battlegrounds heroes do I actually win with?"
+  Plain CLI, no AI involved; unlike the skills it has one dependency
+  ([hslog](https://github.com/HearthSim/python-hslog)), so it keeps its own
+  `requirements.txt`. See its [README](hearthstone-tracker/README.md).
+
 > **Status:** Useful working prototype. Public-card/deck data changes often, so agents should still browse current top-deck sources before recommending a deck.
 
 ---

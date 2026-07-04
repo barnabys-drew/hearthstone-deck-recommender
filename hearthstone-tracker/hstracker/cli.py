@@ -1,0 +1,181 @@
+"""Command-line interface: backfill, watch, stats."""
+from __future__ import annotations
+
+import argparse
+import logging
+import sys
+
+from . import stats as stats_mod
+from .capture import parse_power_log, power_logs
+from .cards import HeroClassResolver
+from .config import find_log_root, resolve_db_path, session_dirs
+from .db import connect, save_games
+from .decks import attach_decks, deck_logs, parse_decks_log
+
+GAME_TYPE_ALIASES = {
+    "ranked": "GT_RANKED",
+    "casual": "GT_CASUAL",
+    "arena": "GT_ARENA",
+    "bg": "GT_BATTLEGROUNDS",
+    "battlegrounds": "GT_BATTLEGROUNDS",
+    "duos": "GT_BATTLEGROUNDS_DUO",
+    "twist": "GT_RANKED",
+}
+FORMAT_ALIASES = {"standard": "FT_STANDARD", "wild": "FT_WILD", "twist": "FT_TWIST"}
+
+
+def _game_type(value: str | None) -> str | None:
+    if not value:
+        return None
+    return GAME_TYPE_ALIASES.get(value.lower(), value.upper())
+
+
+def _format_type(value: str | None) -> str | None:
+    if not value:
+        return None
+    return FORMAT_ALIASES.get(value.lower(), value.upper())
+
+
+def cmd_backfill(args) -> int:
+    log_root = find_log_root(args.logs_root)
+    conn = connect(resolve_db_path(args.db))
+    resolver = HeroClassResolver(allow_fetch=not args.no_fetch)
+    total_found = total_new = 0
+    for session in session_dirs(log_root):
+        deck_events = [ev for path in deck_logs(session) for ev in parse_decks_log(path)]
+        for path in power_logs(session):
+            records = parse_power_log(path, resolver)
+            attach_decks(records, deck_events)
+            inserted = save_games(conn, records)
+            total_found += len(records)
+            total_new += inserted
+            if records:
+                print(f"{path.parent.name}/{path.name}: {len(records)} game(s), {inserted} new")
+    print(f"\nBackfill complete: {total_found} game(s) found, {total_new} new.")
+    return 0
+
+
+def cmd_watch(args) -> int:
+    from .watch import watch_loop
+
+    log_root = find_log_root(args.logs_root)
+    conn = connect(resolve_db_path(args.db))
+
+    resolver = HeroClassResolver(allow_fetch=False)
+
+    def on_games(records):
+        inserted = save_games(conn, records)
+        for r in records:
+            dup = "" if inserted else " (already recorded)"
+            if "BATTLEGROUNDS" in str(r.game_type or ""):
+                hero = resolver.name(r.friendly_hero) or r.friendly_hero or "?"
+                place = f"place {r.bg_place}/8" if r.bg_place else "place ?"
+                tier = f" (tier {r.bg_tech})" if r.bg_tech else ""
+                print(f"[{r.start_time}] {r.game_type} {hero}: {place}{tier}{dup}", flush=True)
+                continue
+            mine = r.deck_name or r.friendly_class or r.friendly_hero or "?"
+            theirs = r.opponent_class or r.opponent_hero or "?"
+            print(f"[{r.start_time}] {r.game_type or '?'} {mine} vs {theirs} "
+                  f"({r.opponent_name or 'unknown'}): {r.result or '?'} in {r.turns or '?'} turns"
+                  + dup, flush=True)
+
+    print(f"Live capture started (db: {resolve_db_path(args.db)}). Ctrl-C to stop.", flush=True)
+    try:
+        watch_loop(log_root, on_games, interval=args.interval)
+    except KeyboardInterrupt:
+        print("\nstopped")
+    return 0
+
+
+def cmd_stats(args) -> int:
+    conn = connect(resolve_db_path(args.db))
+    gt, ft = _game_type(args.game_type), _format_type(args.format)
+    view = args.view
+    deck = getattr(args, "deck", None)
+
+    sections = []
+    if view in ("all", "overall"):
+        sections.append(("Overall (by mode)", stats_mod.overall(conn, gt, ft)))
+    if view in ("all", "deck"):
+        sections.append(("Win rate by deck", stats_mod.by_deck(conn, gt, ft)))
+    if view in ("all", "class"):
+        sections.append(("Win rate by my class", stats_mod.by_class(conn, gt, ft)))
+    if view in ("all", "matchup"):
+        sections.append(("Matchups (my class vs theirs)",
+                         stats_mod.matchups(conn, gt, ft, min_games=args.min_games)))
+    if view in ("all", "first"):
+        sections.append(("Going first vs second", stats_mod.first_vs_second(conn, gt, ft)))
+    if view in ("all", "bg", "bg-heroes"):
+        resolver = HeroClassResolver(allow_fetch=False)
+        if view in ("all", "bg"):
+            overall_bg = stats_mod.bg_overall(conn)
+            if overall_bg or view == "bg":
+                sections.append(("Battlegrounds", overall_bg))
+                sections.append(("Battlegrounds heroes",
+                                 stats_mod.resolve_card_names(
+                                     stats_mod.bg_heroes(conn, min_games=args.min_games),
+                                     resolver.name)))
+        if view == "bg-heroes":
+            sections.append(("Battlegrounds hero picks",
+                             stats_mod.resolve_card_names(
+                                 stats_mod.bg_hero_picks(conn, min_games=args.min_games),
+                                 resolver.name)))
+    if view in ("cards", "mulligan"):
+        resolver = HeroClassResolver(allow_fetch=False)
+        if view == "cards":
+            rows = stats_mod.card_performance(conn, gt, ft, deck, min_games=args.min_games)
+            sections.append(("Card performance (my cards)",
+                             stats_mod.resolve_card_names(rows, resolver.name)))
+        else:
+            rows = stats_mod.mulligan(conn, gt, ft, deck, min_games=args.min_games)
+            sections.append(("Mulligan (my keeps)",
+                             stats_mod.resolve_card_names(rows, resolver.name)))
+    if view == "recent":
+        sections.append(("Recent games", stats_mod.recent(conn, limit=args.limit)))
+
+    filters = " ".join(f for f in (gt, ft, deck) if f)
+    for title, rows in sections:
+        print(f"## {title}" + (f"  [{filters}]" if filters else ""))
+        print(stats_mod.format_table(rows))
+        print()
+    return 0
+
+
+def main(argv=None) -> int:
+    logging.disable(logging.WARNING)  # hslog is chatty about known log quirks
+
+    parser = argparse.ArgumentParser(prog="hstracker", description=__doc__)
+    parser.add_argument("--db", help="SQLite database path (default: ~/.local/share/hearthstone-tracker/games.db)")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("backfill", help="Parse all existing Power logs into the database")
+    p.add_argument("--logs-root", help="Hearthstone Logs directory (auto-detected by default)")
+    p.add_argument("--no-fetch", action="store_true", help="Skip HearthstoneJSON download (class names may be missing)")
+    p.set_defaults(func=cmd_backfill)
+
+    p = sub.add_parser("watch", help="Tail the live Power.log and record games as they finish")
+    p.add_argument("--logs-root", help="Hearthstone Logs directory (auto-detected by default)")
+    p.add_argument("--interval", type=float, default=2.0, help="Poll interval in seconds")
+    p.set_defaults(func=cmd_watch)
+
+    p = sub.add_parser("stats", help="Show win-rate stats")
+    p.add_argument("view", nargs="?", default="all",
+                   choices=["all", "overall", "deck", "class", "matchup", "first",
+                            "cards", "mulligan", "bg", "bg-heroes", "recent"])
+    p.add_argument("--game-type", help="e.g. ranked, casual, arena, bg, or a raw GT_* value")
+    p.add_argument("--format", help="standard, wild, twist, or a raw FT_* value")
+    p.add_argument("--deck", help="Filter cards/mulligan views to decks whose name contains this")
+    p.add_argument("--min-games", type=int, default=1, help="Minimum games/samples per row")
+    p.add_argument("--limit", type=int, default=20, help="Rows for the recent view")
+    p.set_defaults(func=cmd_stats)
+
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

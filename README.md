@@ -93,10 +93,15 @@ What it does:
 - Uses standard non-golden craft costs: Common 40, Rare 100, Epic 400, Legendary 1600.
 - Treats Core-set cards as free/unlockable rather than craftable.
 - Supports local collection files, collection JSON URLs, budgets, JSON output, and one-shot import output.
+- Can auto-fetch a batch of current Standard deck codes so you don't have to assemble candidates by hand.
 
 Examples:
 
 ```bash
+# Optional: auto-collect current Standard deck candidates
+python3 hearthstone-deck-recommender/scripts/fetch_meta_decks.py \
+  --out meta_decks.json --limit 40
+
 # Ranking only
 python3 hearthstone-deck-recommender/scripts/rank_decks.py \
   --collection collection.json \
@@ -187,6 +192,7 @@ hearthstone-deck-builder/
 
 hearthstone-deck-recommender/
   SKILL.md
+  scripts/fetch_meta_decks.py
   scripts/rank_decks.py
   scripts/recommend_and_import.py
   references/

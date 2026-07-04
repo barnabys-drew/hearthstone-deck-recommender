@@ -88,3 +88,14 @@ python3 scripts/recommend_and_import.py \
 The wrapper prints the ranked report and then a `COPY THIS INTO HEARTHSTONE` block for
 the chosen deck. Copy the block or just the deckstring line, open Hearthstone, create a
 new deck, and accept the detected clipboard deck.
+
+## Auto-fetching candidates
+
+`scripts/fetch_meta_decks.py` writes a `meta_decks.json` in the shape above by
+scraping deck codes from a public deck listing. It skips pages it can't parse
+cleanly rather than guessing, and de-duplicates by deck code. Options:
+
+- `--limit N` maximum decks (default 40)
+- `--listing URL` override/add listing pages (repeatable)
+- `--one-per-class` keep only the first deck per class for variety
+- `--sleep SECONDS` delay between requests

@@ -58,7 +58,21 @@ Try these in order; stop at the first that works for the user.
 
 Golden/diamond/signature copies count toward ownership — any finish fills the deck slot.
 
-## Getting current meta decks
+## Getting current meta decks (automatic)
+
+`scripts/fetch_meta_decks.py` collects a batch of current Standard decks (name,
+class, deckstring) from a public deck site and writes `meta_decks.json`:
+
+```bash
+python3 <skill-dir>/scripts/fetch_meta_decks.py --out meta_decks.json --limit 40
+```
+
+Deck sites change their HTML and their front-page decks constantly, so treat this
+as a convenience: if it returns nothing, or you want a specific curated meta,
+assemble `meta_decks.json` by hand or from other sources (below). The ranking
+scripts never depend on the fetcher.
+
+## Getting current meta decks (manual / other sources)
 
 Card pools and the meta change constantly, so fetch **current** data; do not rely on
 memorized lists. Browse current top-deck sources and collect each deck's name, class,

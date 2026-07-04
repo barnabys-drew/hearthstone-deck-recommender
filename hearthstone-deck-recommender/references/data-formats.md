@@ -5,6 +5,11 @@
 The script normalizes several shapes into `{dbfId: owned_count}`. Owned count sums all
 finishes (normal + golden + diamond + signature) because any copy fills a deck slot.
 
+You can load collections from disk with `--collection collection.json` or directly from a
+JSON URL with `--collection-url`. Private HSReplay URLs may require copying the JSON from
+DevTools, or passing a `--collection-cookie` header copied from your browser session. Do
+not commit Cookie headers or paste them into shared logs.
+
 ### HSReplay collection/mine JSON (preferred)
 
 ```json
@@ -68,3 +73,18 @@ For each deck the script decodes the deckstring, and for every card computes
 `missing = required_copies - min(owned, required_copies)`, multiplies by the rarity's
 craft cost (Common 40, Rare 100, Epic 400, Legendary 1600), and sums. Core-set cards are
 0 dust (uncraftable / earned by leveling) and reported separately as free cards.
+
+## One-shot import flow
+
+Use `scripts/recommend_and_import.py` when you want the skills to work together:
+
+```bash
+python3 scripts/recommend_and_import.py \
+  --collection collection.json \
+  --decks meta_decks.json \
+  --budget 4000
+```
+
+The wrapper prints the ranked report and then a `COPY THIS INTO HEARTHSTONE` block for
+the chosen deck. Copy the block or just the deckstring line, open Hearthstone, create a
+new deck, and accept the detected clipboard deck.

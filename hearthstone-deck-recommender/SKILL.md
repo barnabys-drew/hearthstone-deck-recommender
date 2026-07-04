@@ -17,17 +17,23 @@ collection is the part that needs care. The dust math and ranking are handled by
 1. **Get the collection** (see "Getting the collection" below). Save it to `collection.json`.
 2. **Get current top Standard decks as deckstrings** (see "Getting current meta decks").
    Save them to `meta_decks.json` (or a text file of deck codes).
-3. **Rank** with the bundled script:
+3. **Rank** with the bundled script, or use the one-shot wrapper:
    ```bash
    python3 <skill-dir>/scripts/rank_decks.py \
+     --collection collection.json \
+     --decks meta_decks.json
+
+   # One-shot: rank, choose the best deck, and print a Hearthstone import block
+   python3 <skill-dir>/scripts/recommend_and_import.py \
      --collection collection.json \
      --decks meta_decks.json
    ```
 4. **Recommend.** Lead with the cheapest deck that is still competitive. Balance
    dust cost against win rate / tier: a 0-dust tier-3 deck may be worse advice than a
    small-craft tier-1 deck. Explain the tradeoff and list the exact missing cards.
-5. To turn a chosen deck into an in-game import code, hand off to the
-   `hearthstone-deck-builder` skill (or just give the deckstring, which imports directly).
+5. The one-shot wrapper is the tandem flow with `hearthstone-deck-builder`: it uses
+   the recommender's math, then prints the chosen deck's deckstring in an import block
+   the Hearthstone client can read from the clipboard.
 
 ## Getting the collection
 
@@ -39,7 +45,10 @@ Try these in order; stop at the first that works for the user.
    open browser DevTools (F12) → Network, reload, and copy the JSON response from the
    request whose URL contains `account_lo=`. Save it as `collection.json`. It looks
    like `{"collection": {"<dbfId>": [normal, golden, diamond, signature], ...}, ...}`.
-   The script reads this shape directly.
+   The script reads this shape directly. If the copied request URL returns JSON directly,
+   use `--collection-url "https://...account_lo=..."`; if it is private to your browser
+   session, paste/save the JSON manually or pass `--collection-cookie` with a Cookie
+   header copied from DevTools. Avoid saving Cookie headers in shell history.
 2. **Deck-tracker export.** Hearthstone Deck Tracker and Firestone can export the
    collection to JSON/CSV. Any JSON `{dbfId: count}` map, a list of
    `{"dbfId":..., "count":...}` / `{"dbfId":..., "ownedTotal":...}`, or a CSV with a
@@ -76,13 +85,16 @@ text file with one deck code per line and an optional `# Deck Name` comment abov
 
 Key options:
 
-- `--collection PATH` and `--decks PATH` (required).
+- `--collection PATH` **or** `--collection-url URL`, plus `--decks PATH` (required).
+- `--collection-cookie COOKIE` can be used with private browser-session collection URLs.
 - `--cards-json PATH` uses a local HearthstoneJSON `cards.collectible.json` (needed for
   rarity/dust/names). Without it the script fetches the latest set; use `--no-fetch` to
   stay offline (dust costs then require the local file).
 - `--sort value` (default: cheapest first, win-rate tiebreak) | `dust` | `completion`.
 - `--budget N` shows only decks completable within N dust.
 - `--max-results N`, `--top-missing N`, `--json` for machine-readable output.
+- `scripts/recommend_and_import.py` accepts the same collection/deck/card options, plus
+  `--pick N` to output a different ranked deck as the clipboard import block.
 
 Dust to craft a missing copy: Common 40, Rare 100, Epic 400, Legendary 1600. Core-set
 cards can't be crafted (0 dust) and are flagged as free/leveling cards instead.

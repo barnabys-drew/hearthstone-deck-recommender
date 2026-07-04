@@ -32,13 +32,20 @@ easiest for your account to build.
 - Decodes each deck's deckstring and computes dust-to-complete per card
   (Common 40 / Rare 100 / Epic 400 / Legendary 1600; Core cards are free).
 - Ranks cheapest-first with a win-rate tiebreak; supports `--budget`.
+- Can load a collection from a local export (`--collection`) or JSON URL (`--collection-url`).
+- Includes a one-shot wrapper that ranks decks, picks the best one, and prints a
+  Hearthstone clipboard/import block.
 
 ```bash
 python3 hearthstone-deck-recommender/scripts/rank_decks.py \
   --collection collection.json --decks meta_decks.json
+
+python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
+  --collection-url "https://...account_lo=..." --decks meta_decks.json --budget 4000
 ```
 
-The recommender hands a chosen deckstring off to the builder for an import code.
+The recommender and builder work in tandem: the recommender picks the best deck for your
+collection; the wrapper prints the deckstring in a Hearthstone import block.
 
 ## Installing into an AI CLI
 

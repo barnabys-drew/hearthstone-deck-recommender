@@ -105,15 +105,41 @@ def decode_deckstring(code: str) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # Card data
 # --------------------------------------------------------------------------- #
+def fetch_text(url: str, *, cookie: str | None = None) -> str:
+    """Fetch text with a browser-like User-Agent.
+
+    Some HSReplay collection URLs are private to the signed-in browser session.
+    If a direct URL returns login HTML or 403, export/copy the JSON manually or
+    pass a Cookie header copied from the browser with --collection-cookie.
+    """
+    headers = {"User-Agent": USER_AGENT, "Accept": "application/json,text/plain,*/*"}
+    if cookie:
+        headers["Cookie"] = cookie
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return response.read().decode("utf-8")
+
+
+def load_json_from_url(url: str, *, cookie: str | None = None) -> Any:
+    text = fetch_text(url, cookie=cookie)
+    stripped = text.lstrip()
+    if not stripped.startswith(("{", "[")):
+        preview = stripped[:120].replace("\n", " ")
+        raise ValueError(
+            "URL did not return JSON. If this is a private HSReplay page/API, "
+            "copy the JSON response manually or pass --collection-cookie. "
+            f"Response started with: {preview!r}"
+        )
+    return json.loads(text)
+
+
 def load_cards(path: str | None, *, allow_fetch: bool) -> list[dict[str, Any]]:
     if path:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     if not allow_fetch:
         return []
-    request = urllib.request.Request(HJSON_LATEST_COLLECTIBLE, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
+    return load_json_from_url(HJSON_LATEST_COLLECTIBLE)
 
 
 def index_cards(cards: Iterable[dict[str, Any]]) -> dict[int, dict[str, Any]]:
@@ -185,8 +211,7 @@ def normalize_collection(raw: Any) -> dict[int, int]:
     raise ValueError("Unrecognized collection format")
 
 
-def load_collection(path: str) -> dict[int, int]:
-    text = Path(path).read_text(encoding="utf-8")
+def normalize_collection_text(text: str) -> dict[int, int]:
     stripped = text.lstrip()
     if stripped.startswith("{") or stripped.startswith("["):
         return normalize_collection(json.loads(text))
@@ -208,6 +233,23 @@ def load_collection(path: str) -> dict[int, int]:
             continue
         owned[dbf] += int(float(row.get(count_key, 1) or 0)) if count_key else 1
     return dict(owned)
+
+
+def load_collection(path: str) -> dict[int, int]:
+    return normalize_collection_text(Path(path).read_text(encoding="utf-8"))
+
+
+def load_collection_url(url: str, *, cookie: str | None = None) -> dict[int, int]:
+    return normalize_collection(load_json_from_url(url, cookie=cookie))
+
+
+def load_collection_source(path: str | None, url: str | None, *, cookie: str | None = None) -> dict[int, int]:
+    if bool(path) == bool(url):
+        raise ValueError("Provide exactly one of --collection or --collection-url")
+    if url:
+        return load_collection_url(url, cookie=cookie)
+    assert path is not None
+    return load_collection(path)
 
 
 # --------------------------------------------------------------------------- #
@@ -294,6 +336,7 @@ def evaluate_deck(
     result.update(
         {
             "decoded_cards": decoded["cards"],
+            "decoded_format": decoded.get("format") or decoded.get("format_id"),
             "total_cards": total_cards,
             "owned_cards": owned_cards,
             "percent_owned": round(100 * owned_cards / total_cards, 1) if total_cards else 0.0,
@@ -366,7 +409,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Rank current Hearthstone meta decks by dust needed to complete.",
     )
-    parser.add_argument("--collection", required=True, help="Path to your collection (HSReplay/HDT/Firestone export, or {dbfId: count})")
+    parser.add_argument("--collection", help="Path to your collection (HSReplay/HDT/Firestone export, or {dbfId: count})")
+    parser.add_argument("--collection-url", help="URL returning collection JSON, such as the HSReplay account_lo JSON response")
+    parser.add_argument("--collection-cookie", help="Optional Cookie header for private collection URLs (avoid saving this in shell history)")
     parser.add_argument("--decks", required=True, help="Meta decks: JSON list of {name,class,deckstring,winrate?} or a text file of deck codes")
     parser.add_argument("--cards-json", help="Local HearthstoneJSON cards.collectible.json (avoids network)")
     parser.add_argument("--no-fetch", action="store_true", help="Do not fetch HearthstoneJSON")
@@ -379,7 +424,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        owned = load_collection(args.collection)
+        owned = load_collection_source(args.collection, args.collection_url, cookie=args.collection_cookie)
         decks = load_decks(args.decks)
         if not decks:
             raise ValueError("No decks found in --decks input")

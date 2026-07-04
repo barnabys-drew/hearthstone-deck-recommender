@@ -7,8 +7,10 @@ finishes (normal + golden + diamond + signature) because any copy fills a deck s
 
 You can load collections from disk with `--collection collection.json` or directly from a
 JSON URL with `--collection-url`. Private HSReplay URLs may require copying the JSON from
-DevTools, or supplying a Cookie header from your browser session via the
-`HS_COLLECTION_COOKIE` environment variable (preferred) or `--collection-cookie`. Do
+DevTools, or supplying a Cookie header from your browser session via
+`--collection-cookie-file PATH` ('-' reads stdin) or the `HS_COLLECTION_COOKIE` /
+`HS_COLLECTION_COOKIE_FILE` environment variables. The raw `--collection-cookie`
+flag is deprecated: it leaks into shell history and process listings. Do
 not commit Cookie headers or paste them into shared logs.
 
 ### HSReplay collection/mine JSON (preferred)

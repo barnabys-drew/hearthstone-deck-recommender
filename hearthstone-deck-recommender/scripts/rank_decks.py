@@ -110,7 +110,8 @@ def fetch_text(url: str, *, cookie: str | None = None) -> str:
 
     Some HSReplay collection URLs are private to the signed-in browser session.
     If a direct URL returns login HTML or 403, export/copy the JSON manually or
-    pass a Cookie header copied from the browser with --collection-cookie.
+    supply a Cookie header copied from the browser via --collection-cookie-file
+    or the HS_COLLECTION_COOKIE env var.
     """
     headers = {"User-Agent": USER_AGENT, "Accept": "application/json,text/plain,*/*"}
     if cookie:
@@ -127,7 +128,8 @@ def load_json_from_url(url: str, *, cookie: str | None = None) -> Any:
         preview = stripped[:120].replace("\n", " ")
         raise ValueError(
             "URL did not return JSON. If this is a private HSReplay page/API, "
-            "copy the JSON response manually or pass --collection-cookie. "
+            "copy the JSON response manually or supply a Cookie header via "
+            "--collection-cookie-file or the HS_COLLECTION_COOKIE env var. "
             f"Response started with: {preview!r}"
         )
     return json.loads(text)
@@ -250,6 +252,36 @@ def load_collection_source(path: str | None, url: str | None, *, cookie: str | N
         return load_collection_url(url, cookie=cookie)
     assert path is not None
     return load_collection(path)
+
+
+def read_cookie_file(path: str) -> str:
+    """Read a Cookie header from a file, or stdin when path is '-'.
+
+    Keeping cookies in files/env vars avoids putting them directly in shell
+    history or long-lived terminal scrollback. The caller is still responsible
+    for protecting the file (chmod 600 is recommended).
+    """
+    if path == "-":
+        return sys.stdin.read().strip()
+    return Path(path).read_text(encoding="utf-8").strip()
+
+
+def resolve_collection_cookie(
+    *,
+    cookie_arg: str | None = None,
+    cookie_file: str | None = None,
+    env: dict[str, str] | None = None,
+) -> str | None:
+    """Resolve a private collection Cookie header without printing it.
+
+    Precedence is explicit safe file, file env var, cookie env var, then the
+    deprecated raw CLI argument for backwards compatibility.
+    """
+    env = env if env is not None else os.environ
+    source = cookie_file or env.get("HS_COLLECTION_COOKIE_FILE")
+    if source:
+        return read_cookie_file(source)
+    return env.get("HS_COLLECTION_COOKIE") or cookie_arg
 
 
 # --------------------------------------------------------------------------- #
@@ -539,7 +571,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--collection", help="Path to your collection (HSReplay/HDT/Firestone export, or {dbfId: count})")
     parser.add_argument("--collection-url", help="URL returning collection JSON, such as the HSReplay account_lo JSON response")
-    parser.add_argument("--collection-cookie", help="Optional Cookie header for private collection URLs; prefer the HS_COLLECTION_COOKIE env var to keep it out of shell history")
+    parser.add_argument("--collection-cookie-file", help="File holding the Cookie header for private collection URLs ('-' reads stdin); also settable via HS_COLLECTION_COOKIE_FILE or HS_COLLECTION_COOKIE")
+    # Deprecated: a raw cookie on the command line leaks via shell history and
+    # process listings. Kept hidden for backwards compatibility.
+    parser.add_argument("--collection-cookie", help=argparse.SUPPRESS)
     parser.add_argument("--decks", required=True, help="Meta decks: JSON list of {name,class,deckstring,winrate?} or a text file of deck codes")
     parser.add_argument("--cards-json", help="Local HearthstoneJSON cards.collectible.json (avoids network)")
     parser.add_argument("--no-fetch", action="store_true", help="Do not fetch HearthstoneJSON")
@@ -555,7 +590,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        cookie = args.collection_cookie or os.environ.get("HS_COLLECTION_COOKIE")
+        if args.collection_cookie:
+            print("WARNING: --collection-cookie is deprecated; use --collection-cookie-file "
+                  "or the HS_COLLECTION_COOKIE env var to keep the cookie out of shell history.",
+                  file=sys.stderr)
+        cookie = resolve_collection_cookie(
+            cookie_arg=args.collection_cookie,
+            cookie_file=args.collection_cookie_file,
+        )
         owned = load_collection_source(args.collection, args.collection_url, cookie=cookie)
         decks = load_decks(args.decks)
         if not decks:

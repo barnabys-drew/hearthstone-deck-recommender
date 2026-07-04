@@ -4,6 +4,7 @@ import contextlib
 import io
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -71,7 +72,8 @@ class CookieEnvFallbackTests(unittest.TestCase):
             return {}
 
         with mock.patch.object(r, "load_collection_source", side_effect=fake_source), \
-                contextlib.redirect_stdout(io.StringIO()):
+                contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
             r.main(argv)
         return captured["cookie"]
 
@@ -86,10 +88,64 @@ class CookieEnvFallbackTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"HS_COLLECTION_COOKIE": "from-env"}):
             self.assertEqual(self.run_main_and_capture_cookie(self.BASE_ARGS), "from-env")
 
-    def test_flag_wins_over_env_var(self) -> None:
+    def test_env_var_wins_over_deprecated_flag(self) -> None:
         with mock.patch.dict(os.environ, {"HS_COLLECTION_COOKIE": "from-env"}):
             argv = [*self.BASE_ARGS, "--collection-cookie", "from-flag"]
-            self.assertEqual(self.run_main_and_capture_cookie(argv), "from-flag")
+            self.assertEqual(self.run_main_and_capture_cookie(argv), "from-env")
+
+    def test_deprecated_flag_still_works_alone(self) -> None:
+        argv = [*self.BASE_ARGS, "--collection-cookie", "from-flag"]
+        self.assertEqual(self.run_main_and_capture_cookie(argv), "from-flag")
+
+    def test_cookie_file_flag_wins_over_everything(self) -> None:
+        with tempfile.NamedTemporaryFile("w", suffix=".cookie", delete=False) as handle:
+            handle.write("from-file\n")
+            cookie_path = handle.name
+        self.addCleanup(os.unlink, cookie_path)
+        with mock.patch.dict(os.environ, {"HS_COLLECTION_COOKIE": "from-env"}):
+            argv = [*self.BASE_ARGS, "--collection-cookie-file", cookie_path,
+                    "--collection-cookie", "from-flag"]
+            self.assertEqual(self.run_main_and_capture_cookie(argv), "from-file")
+
+
+class ResolveCollectionCookieTests(unittest.TestCase):
+    def test_no_sources_returns_none(self) -> None:
+        self.assertIsNone(r.resolve_collection_cookie(env={}))
+
+    def test_precedence_file_arg_then_file_env_then_env_then_arg(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            arg_file = Path(tmp) / "arg.cookie"
+            env_file = Path(tmp) / "env.cookie"
+            arg_file.write_text("from-arg-file\n")
+            env_file.write_text("from-env-file\n")
+            env = {
+                "HS_COLLECTION_COOKIE_FILE": str(env_file),
+                "HS_COLLECTION_COOKIE": "from-env",
+            }
+            self.assertEqual(
+                r.resolve_collection_cookie(cookie_arg="raw", cookie_file=str(arg_file), env=env),
+                "from-arg-file",
+            )
+            self.assertEqual(
+                r.resolve_collection_cookie(cookie_arg="raw", env=env),
+                "from-env-file",
+            )
+            self.assertEqual(
+                r.resolve_collection_cookie(cookie_arg="raw", env={"HS_COLLECTION_COOKIE": "from-env"}),
+                "from-env",
+            )
+            self.assertEqual(r.resolve_collection_cookie(cookie_arg="raw", env={}), "raw")
+
+    def test_read_cookie_file_strips_whitespace(self) -> None:
+        with tempfile.NamedTemporaryFile("w", suffix=".cookie", delete=False) as handle:
+            handle.write("  session=abc123 \n")
+            cookie_path = handle.name
+        self.addCleanup(os.unlink, cookie_path)
+        self.assertEqual(r.read_cookie_file(cookie_path), "session=abc123")
+
+    def test_read_cookie_file_dash_reads_stdin(self) -> None:
+        with mock.patch.object(sys, "stdin", io.StringIO("session=xyz\n")):
+            self.assertEqual(r.read_cookie_file("-"), "session=xyz")
 
 
 if __name__ == "__main__":

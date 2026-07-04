@@ -37,6 +37,7 @@ from rank_decks import (  # type: ignore  # noqa: E402
     load_collection_source,
     load_decks,
     rank,
+    resolve_collection_cookie,
 )
 
 
@@ -123,7 +124,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--collection", help="Path to collection JSON/CSV")
     parser.add_argument("--collection-url", help="URL returning collection JSON, such as HSReplay's account_lo JSON response")
-    parser.add_argument("--collection-cookie", help="Optional Cookie header for private collection URLs; prefer the HS_COLLECTION_COOKIE env var to keep it out of shell history")
+    parser.add_argument("--collection-cookie-file", help="File holding the Cookie header for private collection URLs ('-' reads stdin); also settable via HS_COLLECTION_COOKIE_FILE or HS_COLLECTION_COOKIE")
+    # Deprecated: a raw cookie on the command line leaks via shell history and
+    # process listings. Kept hidden for backwards compatibility.
+    parser.add_argument("--collection-cookie", help=argparse.SUPPRESS)
     parser.add_argument("--decks", help="Meta decks JSON/text containing deckstrings; omit to fetch current Standard decks live from a public deck site")
     parser.add_argument("--fetch-limit", type=int, default=25, help="Max decks to collect when fetching live (no --decks)")
     parser.add_argument("--fetch-listing", action="append", help="Deck-site listing URL(s) for the live fetch (repeatable)")
@@ -142,7 +146,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        cookie = args.collection_cookie or os.environ.get("HS_COLLECTION_COOKIE")
+        if args.collection_cookie:
+            print("WARNING: --collection-cookie is deprecated; use --collection-cookie-file "
+                  "or the HS_COLLECTION_COOKIE env var to keep the cookie out of shell history.",
+                  file=sys.stderr)
+        cookie = resolve_collection_cookie(
+            cookie_arg=args.collection_cookie,
+            cookie_file=args.collection_cookie_file,
+        )
         owned = load_collection_source(args.collection, args.collection_url, cookie=cookie)
         if args.decks:
             decks = load_decks(args.decks)

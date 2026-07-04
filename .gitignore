@@ -27,3 +27,6 @@ cookies.txt
 /collection*.json
 /collection*.csv
 /meta_decks.local.json
+
+# Claude Code local session settings
+.claude/settings.local.json

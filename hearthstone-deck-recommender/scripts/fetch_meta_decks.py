@@ -22,7 +22,7 @@ import time
 import urllib.request
 from typing import Any
 
-USER_AGENT = "Mozilla/5.0 hearthstone-ai-cli-skills/1.0 (+meta-deck-fetch)"
+USER_AGENT = "Mozilla/5.0 hearthstone-deck-recommender/1.0 (+meta-deck-fetch)"
 
 # Base64 Hearthstone deckstrings start with the reserved(0)+version(1) bytes and
 # are long. Anchoring on "AAE" avoids matching short unrelated base64 blobs.

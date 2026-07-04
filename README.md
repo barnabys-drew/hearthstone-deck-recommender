@@ -1,18 +1,39 @@
-# Hearthstone AI CLI Skills
+# Hearthstone Deck Recommender
 
-> Portable AI-agent skills for building Hearthstone deck codes and choosing the cheapest competitive deck to craft from your collection.
+> A zero-dependency CLI that tells you the cheapest competitive Hearthstone deck to craft from your collection — with optional AI-agent skills layered on top.
 
-[![CI](https://github.com/barnabys-drew/hearthstone-ai-cli-skills/actions/workflows/ci.yml/badge.svg)](https://github.com/barnabys-drew/hearthstone-ai-cli-skills/actions/workflows/ci.yml)
+## Why this exists
+
+I came back to Hearthstone after a long break and the game handed me a pile of free
+cards and dust. I had no idea what was worth building. Every meta site could tell me
+what the best decks were, but none could tell me **which of those decks *my*
+collection was already closest to finishing**. This tool answers exactly that: it
+compares your collection against current top Standard decks, ranks them by the dust
+you'd actually have to spend, and hands you a ready-to-import deck code.
+
+[![CI](https://github.com/barnabys-drew/hearthstone-deck-recommender/actions/workflows/ci.yml/badge.svg)](https://github.com/barnabys-drew/hearthstone-deck-recommender/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 ![Dependencies: standard library only](https://img.shields.io/badge/dependencies-standard%20library%20only-brightgreen)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-This repository contains two `SKILL.md`-style agent skills that work together:
+## Two ways to use it
+
+Both are first-class; pick per situation.
+
+1. **Plain CLI (free, deterministic).** `hsdecks.py` is a single entry point over
+   dependency-free Python scripts. Once you have a `collection.json`, one command
+   fetches the current meta, ranks it against your cards, and prints an import code.
+   No AI, no tokens, no third-party packages.
+2. **AI-agent skills (guided).** The same scripts ship as two `SKILL.md` folders for
+   Codex, Claude Code, Cursor, Gemini, or any AI CLI that reads skills. The agent
+   earns its keep where a script can't: walking you through exporting your collection
+   the first time, giving a conversational overview of the tradeoffs, and recovering
+   when the deck-site scrape breaks by browsing current tier lists itself.
+
+The two skills:
 
 - **`hearthstone-deck-builder`** — build or verify a Hearthstone deck and produce a clipboard-ready import deck code.
 - **`hearthstone-deck-recommender`** — compare your collection against current Standard meta decks and rank which decks are cheapest/easiest to complete.
-
-The scripts are dependency-free Python and are designed to be used by Codex, Claude Code, Cursor, Gemini, or any AI CLI that can read a `SKILL.md` file.
 
 > **Status:** Useful working prototype. Public-card/deck data changes often, so agents should still browse current top-deck sources before recommending a deck.
 
@@ -23,9 +44,7 @@ The scripts are dependency-free Python and are designed to be used by Codex, Cla
 Given a collection export (`collection.json`), run:
 
 ```bash
-python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
-  --collection collection.json \
-  --budget 4000
+python3 hsdecks.py recommend --collection collection.json
 ```
 
 With no `--decks`, it fetches a batch of current Standard decks live from a public
@@ -83,9 +102,7 @@ What it does:
 Example:
 
 ```bash
-python3 hearthstone-deck-builder/scripts/build_deck_code.py \
-  --input deck.json \
-  --copy
+python3 hsdecks.py build --input deck.json --copy
 ```
 
 ### `hearthstone-deck-recommender`
@@ -105,40 +122,48 @@ Examples:
 
 ```bash
 # One-shot with live data: fetch current Standard decks + card data, rank, import block
-python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
-  --collection collection.json
+python3 hsdecks.py recommend --collection collection.json
 
 # Optional: save current Standard deck candidates for reuse/inspection
-python3 hearthstone-deck-recommender/scripts/fetch_meta_decks.py \
-  --out meta_decks.json --limit 40
+python3 hsdecks.py fetch-decks --out meta_decks.json --limit 40
 
 # Ranking only, against a saved candidate list
-python3 hearthstone-deck-recommender/scripts/rank_decks.py \
-  --collection collection.json \
-  --decks meta_decks.json
+python3 hsdecks.py rank --collection collection.json --decks meta_decks.json
 
 # One-shot with a live collection URL and saved decks
-python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
+python3 hsdecks.py recommend \
   --collection-url "https://...account_lo=..." \
   --decks meta_decks.json \
   --view visual \
   --pick-policy close
 ```
 
+`hsdecks.py` is a thin dispatcher: each subcommand accepts exactly the flags of the
+underlying script in `hearthstone-deck-builder/scripts/` and
+`hearthstone-deck-recommender/scripts/`, which remain directly runnable (that is what
+the AI skills call).
+
 ---
 
-## Quick start for humans
+## Quick start (no AI required)
 
 ```bash
-git clone https://github.com/barnabys-drew/hearthstone-ai-cli-skills.git
-cd hearthstone-ai-cli-skills
+git clone https://github.com/barnabys-drew/hearthstone-deck-recommender.git
+cd hearthstone-deck-recommender
 python3 -m unittest discover -s tests
 ```
 
-Try the deterministic sample fixtures:
+Export your collection (see [`docs/collection-guide.md`](docs/collection-guide.md)),
+save it as `collection.json`, then:
 
 ```bash
-python3 hearthstone-deck-recommender/scripts/recommend_and_import.py \
+python3 hsdecks.py recommend --collection collection.json --view visual
+```
+
+Or try the deterministic sample fixtures first:
+
+```bash
+python3 hsdecks.py recommend \
   --collection examples/collection.sample.json \
   --decks examples/meta_decks.sample.json \
   --cards-json examples/cards.sample.json \
@@ -149,9 +174,14 @@ The examples use tiny synthetic card IDs so tests are stable; they are not real 
 
 ---
 
-## Installing into AI CLIs
+## Installing into AI CLIs (optional)
 
-These skills use ordinary `SKILL.md` folders. The cleanest setup is to keep this repository as the canonical source and symlink each skill folder into your AI CLI’s skill directory.
+Everything above works without an AI. Install the skills when you want the guided
+experience: first-time collection export walkthroughs, a conversational overview of
+which deck to pick and why, and automatic recovery (the agent browses current tier
+lists) when the deck-site scrape comes back empty.
+
+The skills use ordinary `SKILL.md` folders. The cleanest setup is to keep this repository as the canonical source and symlink each skill folder into your AI CLI’s skill directory.
 
 ```bash
 # Codex-style skills
@@ -196,6 +226,8 @@ Read the detailed guides: [`docs/collection-guide.md`](docs/collection-guide.md)
 ## Repository layout
 
 ```text
+hsdecks.py    # unified CLI entry point (recommend | rank | fetch-decks | build)
+
 hearthstone-deck-builder/
   SKILL.md
   scripts/build_deck_code.py

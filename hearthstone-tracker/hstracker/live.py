@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,18 @@ _FLAG_TAGS = (
 
 def _entity_flags(entity: Any) -> list[str]:
     return [label for tag, label in _FLAG_TAGS if entity.tags.get(tag)]
+
+
+_TEXT_MARKUP_RE = re.compile(r"<[^>]+>|\[x\]")
+
+
+def card_text(card: dict) -> str | None:
+    """Rules text cleaned of HearthstoneJSON markup ($/# damage markers, tags)."""
+    text = card.get("text")
+    if not text:
+        return None
+    text = _TEXT_MARKUP_RE.sub("", text).replace("$", "").replace("#", "")
+    return " ".join(text.split()) or None
 
 
 def snapshot_from_tree(
@@ -119,12 +132,15 @@ def snapshot_from_tree(
                     "name": card.get("name", card_id),
                     "atk": entity.tags.get(GameTag.ATK, 0),
                     "durability": base - entity.tags.get(GameTag.DAMAGE, 0),
+                    "text": card_text(card),
                 }
             elif zone == Zone.HAND:
                 if card_id:
                     hand.append({
                         "name": card.get("name", card_id),
                         "cost": entity.tags.get(GameTag.COST, card.get("cost")),
+                        "type": card.get("type"),
+                        "text": card_text(card),
                         "pos": entity.tags.get(GameTag.ZONE_POSITION, 0),
                     })
                 else:
@@ -141,6 +157,7 @@ def snapshot_from_tree(
                     "pos": entity.tags.get(GameTag.ZONE_POSITION, 0),
                     "flags": flags,
                     "location": card_type == CardType.LOCATION,
+                    "text": card_text(card),
                 })
             elif zone == Zone.DECK:
                 deck_remaining += 1
@@ -173,7 +190,8 @@ def snapshot_from_tree(
                 if remaining > 0:
                     card = resolver.card(card_id)
                     left.append({"name": card.get("name", card_id),
-                                 "cost": card.get("cost"), "count": remaining})
+                                 "cost": card.get("cost"), "count": remaining,
+                                 "type": card.get("type"), "text": card_text(card)})
             left.sort(key=lambda c: (c["cost"] if c["cost"] is not None else 99, c["name"]))
             snapshot[side]["deck_cards_left"] = left
 

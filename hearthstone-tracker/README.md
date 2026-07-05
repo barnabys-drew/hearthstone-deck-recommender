@@ -93,7 +93,9 @@ are excluded (their "mulligan" is a hero pick).
 snapshot plus writes the full state as JSON to
 `~/.local/share/hearthstone-tracker/live.json` (atomic writes; override with
 `--json-file`). `--once` prints a single snapshot and exits. Snapshots
-include: your hand with costs, both boards with buff/`damaged` flags,
+include: your hand with costs **plus each card's type and rules text** (so an
+agent reasons from what the card actually does, not from what it remembers
+about the card), both boards with buff/`damaged` flags,
 HP/armor/mana, weapons, opponent hand count and secrets, **which cards are
 probably still in your deck** (your Decks.log decklist minus what you've
 drawn — this is what turns "hope for burn" into "3 of my 8 remaining cards

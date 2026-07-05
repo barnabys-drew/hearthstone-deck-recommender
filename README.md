@@ -45,6 +45,14 @@ Also in this repo:
   ([hslog](https://github.com/HearthSim/python-hslog)), so it keeps its own
   `requirements.txt`. See its [README](hearthstone-tracker/README.md).
 
+- **[`hearthstone-live-coach`](hearthstone-live-coach/SKILL.md)** — real-time
+  in-game strategic advice. Tails the game's `Power.log` and emits a complete
+  snapshot every turn: hand with card text, board with buffs, HP/armor/mana,
+  remaining deck outs, opponent play history, and lethal math. An AI agent reads
+  these snapshots and advises turn-by-turn, drawing from the actual game state
+  (not model memory). Includes a rigorous checklist and traps from real-game
+  validation. See its [architecture & checklist](hearthstone-live-coach/README.md).
+
 > **Status:** Useful working prototype. Public-card/deck data changes often, so agents should still browse current top-deck sources before recommending a deck.
 
 ---

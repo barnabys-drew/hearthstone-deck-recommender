@@ -30,10 +30,11 @@ Both are first-class; pick per situation.
    the first time, giving a conversational overview of the tradeoffs, and recovering
    when the deck-site scrape breaks by browsing current tier lists itself.
 
-The two skills:
+The skills:
 
 - **`hearthstone-deck-builder`** — build or verify a Hearthstone deck and produce a clipboard-ready import deck code.
 - **`hearthstone-deck-recommender`** — compare your collection against current Standard meta decks and rank which decks are cheapest/easiest to complete.
+- **`hearthstone-live-coach`** — coach you turn by turn during a real game: the agent tails the game's own logs via the tracker's `hst live` feed and answers "what's my play?" with the actual hand, boards, and lethal math in front of it.
 
 Also in this repo:
 
@@ -249,9 +250,12 @@ hearthstone-deck-recommender/
   scripts/recommend_and_import.py
   references/
 
+hearthstone-live-coach/
+  SKILL.md     # live turn-by-turn coaching playbook over the tracker's hst live feed
+
 hearthstone-tracker/
-  hst          # CLI launcher (backfill | watch | stats)
-  hstracker/   # Power.log -> SQLite capture and stats queries
+  hst          # CLI launcher (backfill | watch | live | stats)
+  hstracker/   # Power.log -> SQLite capture, live snapshots, stats queries
   requirements.txt
 
 examples/     # stable synthetic fixtures

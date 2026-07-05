@@ -110,6 +110,9 @@ later addition).
 The intended workflow with an AI CLI: run `hst live` in the background, watch
 its stdout for lines starting with `== ` (mulligan, each turn, game over),
 and on each of your turns have the agent read `live.json` and suggest a play.
+The [`hearthstone-live-coach`](../hearthstone-live-coach/SKILL.md) skill packages
+this workflow as a model-agnostic playbook (setup, per-turn checklist, output
+format, known traps) so coaching quality doesn't depend on which model runs it.
 Markers land within a few seconds of the real event. Battle-tested the day it
 was written: its first coached game came down to exact lethal arithmetic —
 the tool called "dead by 2 if everything goes face", and everything went

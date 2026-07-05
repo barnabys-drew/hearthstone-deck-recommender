@@ -124,6 +124,10 @@ def snapshot_delta(prev: dict, curr: dict) -> str | None:
         state_parts = [x for x in [hp_change, armor_change] if x]
         if state_parts:
             parts.append("my " + " ".join(state_parts))
+    my_atk_prev = me_prev.get("attack") or 0
+    my_atk_curr = me_curr.get("attack") or 0
+    if my_atk_prev != my_atk_curr:
+        parts.append(f"my attack {my_atk_prev}→{my_atk_curr}")
     if (my_weapon_prev is None and my_weapon_curr is not None) or \
        (my_weapon_prev is not None and my_weapon_curr is None) or \
        (my_weapon_prev and my_weapon_curr and my_weapon_prev != my_weapon_curr):
@@ -314,6 +318,7 @@ def snapshot_from_tree(
         hero_hp = hero_armor = None
         hero_dead = False
         hero_class = weapon = None
+        hero_atk = 0  # from weapon or temp buffs (e.g. Searing Fissure's +3)
         hand: list[dict[str, Any]] = []
         board: list[dict[str, Any]] = []
         deck_remaining = hidden_in_hand = secrets = 0
@@ -338,6 +343,7 @@ def snapshot_from_tree(
                 if zone == Zone.PLAY:
                     hero_hp = max(0, entity.tags.get(GameTag.HEALTH, 30) - entity.tags.get(GameTag.DAMAGE, 0))
                     hero_armor = entity.tags.get(GameTag.ARMOR, 0)
+                    hero_atk = entity.tags.get(GameTag.ATK, 0)
                     hero_class = resolver.player_class(card_id)
                 elif zone == Zone.GRAVEYARD and hero_hp is None:
                     hero_dead = True  # dead heroes read 0hp, not "None"
@@ -391,6 +397,7 @@ def snapshot_from_tree(
             "class": hero_class,
             "hp": hero_hp,
             "armor": hero_armor,
+            "attack": hero_atk,
             "mana": resources - player.tags.get(GameTag.RESOURCES_USED, 0),
             "mana_max": resources,
             "weapon": weapon,
@@ -556,8 +563,9 @@ def format_snapshot(snap: dict[str, Any]) -> str:
         return "\n".join(lines)
 
     whose = "your turn" if snap.get("whose_turn") == "me" else "opponent's turn"
+    my_atk = f" {me['attack']} atk," if me.get("attack") else ""
     lines = [
-        f"== TURN {snap['turn']} ({whose}) — ME {_hp(me)} "
+        f"== TURN {snap['turn']} ({whose}) — ME {_hp(me)}{my_atk} "
         f"{me['mana']}/{me['mana_max']} mana vs OPP {_hp(opp)}"
     ]
     weapon = f" | weapon: {me['weapon']['name']} {me['weapon']['atk']}/{me['weapon']['durability']}" if me.get("weapon") else ""

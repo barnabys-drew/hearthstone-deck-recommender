@@ -23,15 +23,18 @@ got them wrong in live play.
    ```
 2. Watch its stdout for these markers (e.g. with a background Monitor/tail):
    ```
-   ^== MULLIGAN|^== TURN.*your turn|^== DISCOVER PENDING|^== UPDATE|^== GAME OVER|Traceback|Error
+   ^== MULLIGAN|^== TURN.*your turn|^== DISCOVER PENDING|^== UPDATE|^== GAME OVER|^!!|Traceback|Error
    ```
    Do NOT trigger on opponent turns — stay quiet during them unless the user asks.
    - `^== DISCOVER PENDING` fires mid-turn when the coach's poll lands in the window between a
      Discover choice appearing and you clicking it (best-effort, not guaranteed). Multiple
      simultaneous discovers each fire their own line.
    - `^== UPDATE` fires when the game state changes mid-turn: cards appearing in hand/board
-     (discovered, summoned, etc.), or state swings (HP/armor damage, secrets triggering, weapons).
-     Always arrives within one poll interval (~3s default).
+     (discovered, summoned, etc.), or state swings (HP/armor damage, hero attack gained,
+     secrets triggering, weapons). Always arrives within one poll interval (~3s default).
+   - `^!!` means the live view went stale (the game stopped exporting). Tell the user
+     immediately, coach from screenshots for the rest of the game, and treat every
+     snapshot field as outdated until a fresh `== TURN` marker prints.
 3. On each marker, read the full snapshot JSON:
    `~/.local/share/hearthstone-tracker/live.json` (or the `--json-file` override).
    Always re-read it fresh; it is rewritten continuously and the stdout line is
@@ -60,13 +63,24 @@ Work through this checklist before writing anything:
    removal; `damaged` marks legal targets for damaged-only effects;
    `exhausted` minions can't attack this turn (newly played or already acted);
    `frozen`/`stealth` as usual.
-5. **Check `deck_cards_left`** (your remaining deck) before advising a race:
+5. **Spend the hero's attack.** `me.attack` > 0 means the hero can swing this
+   turn (weapon, or a temp buff like "+3 Attack this turn" — those expire at
+   end of turn). Always say explicitly where the swing goes: face when racing,
+   into a minion when stabilizing (mind the counterattack damage). Never let a
+   temp attack buff expire unused without stating why. If a spell grants
+   attack, sequence it: cast the spell first, then swing.
+6. **The Coin is a card, not a ritual.** Only recommend Coin when the extra
+   mana converts into a play that otherwise wouldn't fit this turn. Coin into
+   a 1-drop while mana floats just burns the Coin (real-game mistake: turn 1,
+   Coin + 1-cost minion with a native mana already available — the Coin added
+   nothing).
+7. **Check `deck_cards_left`** (your remaining deck) before advising a race:
    "N of your M remaining cards deal face damage" is the difference between a
    real race and a prayer.
-6. **Check `opp.played`** (everything the opponent has cast) before advising
+8. **Check `opp.played`** (everything the opponent has cast) before advising
    around removal: if their board clears are spent, commit to the board; if
    not, hold something back.
-7. **Deathrattle caution.** Eggs and token-spawners usually want to die; don't
+9. **Deathrattle caution.** Eggs and token-spawners usually want to die; don't
    recommend popping them without a reason. If the opponent's minion text
    mentions a deathrattle payoff, factor it into trades.
 

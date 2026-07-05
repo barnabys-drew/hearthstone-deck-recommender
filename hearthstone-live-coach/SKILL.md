@@ -74,8 +74,9 @@ Work through this checklist before writing anything:
   attacks BEFORE spells, so burn can be re-aimed if a deathrattle or hidden
   armor changes the math mid-sequence. If it's near-lethal, state the exact
   shortfall instead.
-- Mulligan (`== MULLIGAN` marker): recommend keep/toss per card with a
-  few words of reasoning each, before the user locks in.
+- Mulligan (`== MULLIGAN` marker): **bullet list** of keep/toss recommendations,
+  one card per line with a few words of reasoning. User scans it in seconds
+  before locking in.
 - Game over: a short honest post-mortem is welcome — what decided the game,
   what to do differently. This is the only time longer analysis is appropriate.
 

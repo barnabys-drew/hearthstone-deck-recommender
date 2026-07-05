@@ -176,6 +176,24 @@ def cmd_live(args) -> int:
                         pass  # Silently skip pending_discovers errors
 
                 if marker != last_marker:
+                    # raw_turn increments once per turn taken by either side, but
+                    # the displayed turn number pairs one raw_turn from each side
+                    # into a shared "TURN N" label. An extra-turn effect (same
+                    # side goes twice) advances raw_turn without advancing that
+                    # shared label — the header would look identical to the
+                    # previous print (e.g. two "TURN 8 (opponent's turn)" rows)
+                    # even though a full turn's worth of new events happened.
+                    if (
+                        last_snap is not None
+                        and snap.get("turn") == last_snap.get("turn")
+                        and snap.get("whose_turn") == last_snap.get("whose_turn")
+                        and snap.get("raw_turn") != last_snap.get("raw_turn")
+                    ):
+                        print(
+                            f"== EXTRA TURN — {('you' if snap.get('whose_turn') == 'me' else 'opponent')} "
+                            f"went again (raw turn {last_snap.get('raw_turn')} -> {snap.get('raw_turn')})",
+                            flush=True,
+                        )
                     last_marker = marker
                     print(format_snapshot(snap), flush=True)
                     last_snap = snap

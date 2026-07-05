@@ -565,7 +565,7 @@ def format_snapshot(snap: dict[str, Any]) -> str:
     whose = "your turn" if snap.get("whose_turn") == "me" else "opponent's turn"
     my_atk = f" {me['attack']} atk," if me.get("attack") else ""
     lines = [
-        f"== TURN {snap['turn']} ({whose}) — ME {_hp(me)}{my_atk} "
+        f"== TURN {snap['turn']} [raw {snap['raw_turn']}] ({whose}) — ME {_hp(me)}{my_atk} "
         f"{me['mana']}/{me['mana_max']} mana vs OPP {_hp(opp)}"
     ]
     weapon = f" | weapon: {me['weapon']['name']} {me['weapon']['atk']}/{me['weapon']['durability']}" if me.get("weapon") else ""

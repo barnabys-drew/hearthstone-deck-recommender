@@ -15,6 +15,27 @@ This skill is deliberately procedural. Follow it exactly even if you believe you
 know the game well — several of the rules below exist because a capable model
 got them wrong in live play.
 
+## Lessons file: remember misplays across games
+
+`~/.local/share/hearthstone-tracker/lessons.md` is a running, dated list of
+misplays and sequencing mistakes flagged in past games — either by you or by
+the user pointing one out after the fact. It persists across sessions so the
+same mistake doesn't repeat game after game.
+
+- **At the start of every session, before the mulligan advice:** read this
+  file (create it with a one-line header if it doesn't exist yet). Skim for
+  anything relevant to the current class/matchup and fold it into your
+  mulligan/turn-1 advice where it applies — don't just recite the whole file
+  at the user.
+- **Whenever a misplay comes up** — you catch one in the moment, the user
+  points one out after playing a turn differently than advised, or a
+  post-game review surfaces one — append a new dated entry: matchup, what
+  happened, the better line, in 2-4 lines. Newest entries at the top.
+- This file is for *play mistakes and sequencing lessons*, not general card
+  reference (that's what `deck_cards_left`/rules text in the snapshot are
+  for) and not deck-building feedback (that belongs to the deck-cleaner
+  skill's own output, not here).
+
 ## Setup (once per session)
 
 1. Start the state feed in the background:
@@ -23,19 +44,27 @@ got them wrong in live play.
    ```
 2. Watch its stdout for these markers (e.g. with a background Monitor/tail):
    ```
-   ^== MULLIGAN|^== TURN.*your turn|^== DISCOVER PENDING|^== UPDATE|^== GAME OVER|^!!|^   |Traceback|Error
+   ^== MULLIGAN|^== TURN.*your turn|^== EXTRA TURN|^== DISCOVER PENDING|^== UPDATE|^== GAME OVER|^!!|^   |Traceback|Error
    ```
    The `^   ` alternation matters: the indented detail lines under each turn
    marker (hand, boards, deck-left) ride along in the same notification, so
    most turns you can advise **directly from the marker block with zero file
    reads**. Do NOT trigger on opponent turns — stay quiet during them unless
-   the user asks.
+   the user asks. `^== EXTRA TURN` is the one opponent-side exception (see below).
    - `^== DISCOVER PENDING` fires mid-turn when the coach's poll lands in the window between a
      Discover choice appearing and you clicking it (best-effort, not guaranteed). Multiple
      simultaneous discovers each fire their own line.
    - `^== UPDATE` fires when the game state changes mid-turn: cards appearing in hand/board
      (discovered, summoned, etc.), or state swings (HP/armor damage, hero attack gained,
      secrets triggering, weapons). Always arrives within one poll interval (~1s default).
+   - `^== EXTRA TURN` fires when the same side's turn repeats (an extra-turn effect) instead
+     of play passing to the other side. The turn HEADER's displayed `TURN N` number pairs one
+     raw turn from each side into a shared label, so a same-side repeat prints the identical
+     `TURN N (opponent's turn)` header twice in a row — that is NOT a stale duplicate, it is
+     a second real turn (a second full attack/spell phase) that just happened. Treat it as
+     seriously as any other turn boundary: re-read the board, don't assume nothing changed.
+     The header also now shows `[raw N]` — two prints with the same `TURN` number but
+     different `raw` numbers confirms it's a genuine extra turn, not a repeat print.
    - `^!!` means the live view went stale (the game stopped exporting). Tell the user
      immediately, coach from screenshots for the rest of the game, and treat every
      snapshot field as outdated until a fresh `== TURN` marker prints.
@@ -109,6 +138,14 @@ Work through this checklist before writing anything:
 9. **Deathrattle caution.** Eggs and token-spawners usually want to die; don't
    recommend popping them without a reason. If the opponent's minion text
    mentions a deathrattle payoff, factor it into trades.
+10. **Random-splash effects go last, or the plan is fiction.** A card whose
+    text says "randomly split"/"random enemy" (Erupting Volcano, Holy Nova-style
+    AoE) can kill your intended target before a later numbered step reaches it
+    — real-game miss: a plan said "cast Volcano, then finish [target] with a
+    direct-damage spell," but Volcano's random splash had already killed the
+    target, leaving no legal target for step 2. Sequence deterministic,
+    targeted removal FIRST; put random-splash cards last in the numbered list,
+    and say plainly that its target is not guaranteed.
 
 ## Output format (strict — the user is on the game's turn timer)
 

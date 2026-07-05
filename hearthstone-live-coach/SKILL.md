@@ -81,6 +81,20 @@ Work through this checklist before writing anything:
 
 ## Known traps (each of these happened in real coached games)
 
+- **Exhausted minions WILL attack next turn.** "Exhausted" means "can't act this turn",
+  not "locked down forever". On turn N, an exhausted minion resets and attacks freely
+  on turn N+1 (and can even attack multiple times if special mechanics apply). When
+  counting incoming damage next turn, treat exhausted minions as full threats, not
+  defused ones. This cost a race: I assumed a 14/8 exhausted minion was safe, but it
+  attacked twice for 28 damage.
+- **Discover and deathrattle mechanics are invisible to the snapshot.** When a card
+  says "Discover a minion," that choice happens mid-turn after the snapshot was
+  fired. Your hand on turn N+1 includes the discovered card, but advice on turn N
+  couldn't see it coming. Same with deathrattles: they resolve during death, and
+  by the next snapshot they're done. If advice seems out of sync with your actual
+  hand (e.g., "you have 4 cards but we advised as if you had 3"), you picked a
+  discover and the snapshot doesn't know yet. This is not a bug in the advice, just
+  a 1-turn lag inherent to turn-boundary snapshots.
 - Advising "play Slam" as if it were a minion — it is a targeted spell and the
   game rejects it with no board. Type/text fields exist so this never recurs.
 - Treating Erupting Volcano as a one-shot AoE spell — it is a LOCATION with a

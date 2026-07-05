@@ -213,3 +213,26 @@ Work through this checklist before writing anything:
   (`== MULLIGAN — 5 card(s) dealt vs WARLOCK: Slam(1), ...`). If a mulligan
   header ever arrives without cards, ask for a screenshot rather than
   advising blind.
+- **Advising on card text from memory, not from the card.** Real miss: said
+  Time-Twisted Seer "draws 2 cards" when its actual text is "Spell Damage +2
+  while damaged" — zero draw. **Always read card text from the snapshot or
+  screenshot before advising.** This is the #1 failure mode. Don't assume you
+  know what a card does.
+- **Advising AoE/damage-to-all without checking minion HP.** Advised Searing
+  Fissure (1 damage to all minions) without noticing their own Vendor was at
+  2/1 (1 HP left) — the AoE would kill their own minion. **Read minion HP and
+  damage flags before advising any "damage to all" or board-wipe effect.**
+- **Leaving mana unspent without advising efficient use.** Advised passing with
+  4 mana floating. Should have advised: **use all available mana efficiently,
+  including hero power** (Armor Up for Warrior, etc.) when it makes strategic
+  sense. Don't leave resources on the table.
+- **Advising minion-only cards as face damage.** Spells like Precursory Strike
+  (3 damage to a minion), Bash (minion-only), Torch (1 damage to a damaged
+  minion), and Sanguine Depths (1 damage to a minion + buff) cannot hit face.
+  Always verify card text in the snapshot's rules text or a screenshot before
+  suggesting targeting. Don't assume "burn" spells go to face — read the text.
+- **Trusting snapshot diffs over live board state.** When a screenshot
+  contradicts the snapshot's HP numbers or board state, the screenshot is
+  ground truth — the live board is what matters. If state looks off, ask for
+  a fresh screenshot or read live.json directly instead of inferring from
+  diffs alone.

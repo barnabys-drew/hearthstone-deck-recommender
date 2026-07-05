@@ -90,10 +90,15 @@ are excluded (their "mulligan" is a hero pick).
 ## Live game state (`hst live`)
 
 `./hst live` tails the game in progress and, each turn, prints a compact
-snapshot (your hand with costs, both boards with buffs, HP/armor/mana,
-opponent hand count and secrets) plus writes the full state as JSON to
+snapshot plus writes the full state as JSON to
 `~/.local/share/hearthstone-tracker/live.json` (atomic writes; override with
-`--json-file`). `--once` prints a single snapshot and exits.
+`--json-file`). `--once` prints a single snapshot and exits. Snapshots
+include: your hand with costs, both boards with buff/`damaged` flags,
+HP/armor/mana, weapons, opponent hand count and secrets, **which cards are
+probably still in your deck** (your Decks.log decklist minus what you've
+drawn — this is what turns "hope for burn" into "3 of my 8 remaining cards
+win the race"), and **everything the opponent has played so far**. A
+`== MULLIGAN` marker fires with your dealt cards before you lock in keeps.
 
 Only client-visible information exists in the log — the opponent's hand
 appears as a count of hidden cards, so this is a legal-information tool, not
@@ -101,9 +106,12 @@ a cheat. Constructed-focused for now (Battlegrounds shop view is a possible
 later addition).
 
 The intended workflow with an AI CLI: run `hst live` in the background, watch
-its stdout for lines starting with `== TURN`, and on each of your turns have
-the agent read `live.json` and suggest a play. Turn markers land within a few
-seconds of the real turn.
+its stdout for lines starting with `== ` (mulligan, each turn, game over),
+and on each of your turns have the agent read `live.json` and suggest a play.
+Markers land within a few seconds of the real event. Battle-tested the day it
+was written: its first coached game came down to exact lethal arithmetic —
+the tool called "dead by 2 if everything goes face", and everything went
+face.
 
 Implementation notes: each poll re-parses only the current game's lines with
 a fresh hslog parser — a single parser fed a multi-game Power.log can raise

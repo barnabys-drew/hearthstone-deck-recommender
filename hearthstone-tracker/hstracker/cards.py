@@ -47,11 +47,14 @@ class HeroClassResolver:
                 cards = None
         if cards is None and allow_fetch:
             cards = _download_cards()
+        self._by_dbf: dict[int, dict] = {}
         for card in cards or []:
             cid, cls = card.get("id"), card.get("cardClass")
             if not cid:
                 continue
             self._cards[cid] = card
+            if isinstance(card.get("dbfId"), int):
+                self._by_dbf[card["dbfId"]] = card
             if cls:
                 self._by_card_id[cid] = cls
             if card.get("name"):
@@ -67,6 +70,9 @@ class HeroClassResolver:
         if not card_id:
             return {}
         return self._cards.get(card_id, {})
+
+    def card_by_dbf(self, dbf_id: int) -> dict:
+        return self._by_dbf.get(dbf_id, {})
 
     def player_class(self, hero_card_id: str | None) -> str | None:
         if not hero_card_id:

@@ -50,6 +50,42 @@ def _looks_like_deckstring(code: str) -> bool:
     return len(raw) > 4 and raw[0] == 0 and raw[1] == 1
 
 
+def decode_deckstring_counts(code: str) -> dict[int, int]:
+    """{dbfId: count} decoded from a deckstring; {} if it can't be decoded."""
+    try:
+        data = base64.b64decode("".join(code.split()))
+    except Exception:
+        return {}
+    pos = 0
+
+    def varint() -> int:
+        nonlocal pos
+        shift = value = 0
+        while True:
+            byte = data[pos]
+            pos += 1
+            value |= (byte & 0x7F) << shift
+            if not byte & 0x80:
+                return value
+            shift += 7
+
+    try:
+        varint(), varint(), varint()  # reserved, version, format
+        for _ in range(varint()):     # heroes
+            varint()
+        counts: dict[int, int] = {}
+        for fixed_count in (1, 2):
+            for _ in range(varint()):
+                dbf = varint()
+                counts[dbf] = counts.get(dbf, 0) + fixed_count
+        for _ in range(varint()):
+            dbf, n = varint(), varint()
+            counts[dbf] = counts.get(dbf, 0) + n
+        return counts
+    except Exception:
+        return {}
+
+
 def _parse_log_time(text: str) -> datetime | None:
     # Log fractions have 7 digits; datetime accepts at most 6.
     hms, _, frac = text.partition(".")

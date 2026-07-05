@@ -88,6 +88,21 @@ def cmd_watch(args) -> int:
     return 0
 
 
+def _current_deck_counts(session_dir, resolver) -> dict[str, int] | None:
+    """{card_id: copies} for the most recently queued deck, from Decks.log."""
+    from .decks import decode_deckstring_counts
+
+    events = [ev for path in deck_logs(session_dir) for ev in parse_decks_log(path)]
+    if not events:
+        return None
+    counts: dict[str, int] = {}
+    for dbf, n in decode_deckstring_counts(events[-1].deckstring).items():
+        card_id = resolver.card_by_dbf(dbf).get("id")
+        if card_id:
+            counts[card_id] = n
+    return counts or None
+
+
 def cmd_live(args) -> int:
     import time
 
@@ -101,7 +116,9 @@ def cmd_live(args) -> int:
     print(f"Live game state (json: {json_file}). Ctrl-C to stop.", flush=True)
     tail: LiveGameTail | None = None
     current_dir = None
-    last_marker = None  # (path, raw_turn, game_over) last printed
+    last_marker = None  # (path, raw_turn, phase, game_over) last printed
+    deck_counts = None
+    deck_game_no = -1
 
     while True:
         dirs = session_dirs(log_root)
@@ -114,10 +131,14 @@ def cmd_live(args) -> int:
         if path and path.exists() and (tail is None or tail.path != path):
             tail = LiveGameTail(path)
         if tail and (tail.poll() or args.once):
-            snap = tail.snapshot(resolver)
+            if tail.game_no != deck_game_no:
+                # A new game began; re-read Decks.log for the deck just queued.
+                deck_game_no = tail.game_no
+                deck_counts = _current_deck_counts(current_dir, resolver)
+            snap = tail.snapshot(resolver, deck_counts=deck_counts)
             if snap:
                 write_snapshot_json(snap, json_file)
-                marker = (str(tail.path), snap["raw_turn"], snap.get("game_over"))
+                marker = (str(tail.path), snap["raw_turn"], snap.get("phase"), snap.get("game_over"))
                 if marker != last_marker:
                     last_marker = marker
                     print(format_snapshot(snap), flush=True)

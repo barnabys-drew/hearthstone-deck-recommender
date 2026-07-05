@@ -249,8 +249,13 @@ hearthstone-deck-recommender/
   scripts/recommend_and_import.py
   references/
 
+hearthstone-tracker/
+  hst          # CLI launcher (backfill | watch | stats)
+  hstracker/   # Power.log -> SQLite capture and stats queries
+  requirements.txt
+
 examples/     # stable synthetic fixtures
-tests/        # standard-library unittest suite
+tests/        # standard-library unittest suite (tracker tests need hslog)
 docs/         # collection/meta guides and public-release checklist
 ```
 
@@ -258,7 +263,10 @@ docs/         # collection/meta guides and public-release checklist
 
 ## Limitations
 
-- The project does **not** log into Battle.net, scrape the local Hearthstone client, or bypass account protections.
+- The deck tools do **not** log into Battle.net or bypass account protections.
+  The tracker reads the game's own log files (`Power.log`/`Decks.log`), the
+  officially sanctioned mechanism that deck trackers like HDT use — nothing
+  reads game memory or network traffic.
 - The default live fetch scrapes one public deck site (hearthstone-decks.net). Site layouts change; if the fetch comes back empty, browse current top-deck sites and pass `--decks meta_decks.json` instead. Recommendations are only as current as the decks that come in.
 - There is no HSReplay meta-statistics integration (no official public API); win rates appear only when your deck entries include them.
 - Card-name ambiguity is real in Hearthstone. For exact import correctness, DBF IDs are safer than names.
@@ -273,7 +281,10 @@ python3 -m unittest discover -s tests
 python3 hearthstone-deck-builder/scripts/build_deck_code.py --selftest
 ```
 
-No third-party Python packages are required.
+The deck tools require no third-party Python packages. The tracker's tests
+skip automatically unless its one dependency is installed
+(`pip install -r hearthstone-tracker/requirements.txt`); CI installs it so
+they always run there.
 
 ---
 

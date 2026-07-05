@@ -27,6 +27,28 @@ _META_RE = re.compile(
 _COMPLETE_RE = re.compile(
     r"GameState\.DebugPrintPower\(\) - TAG_CHANGE Entity=GameEntity tag=STATE value=COMPLETE"
 )
+_CREATE_GAME_MARKER = "GameState.DebugPrintPower() - CREATE_GAME"
+
+
+class TolerantExporter(EntityTreeExporter):
+    """EntityTreeExporter that skips corrupt packets instead of dying.
+
+    Hearthstone occasionally writes a malformed packet — seen live 2026-07-05:
+    `FULL_ENTITY - Creating ID=114 CardID=` (blank CardID) left a packet with
+    entity=None in the tree, and the stock exporter raises TypeError on it.
+    Because the tracker re-exports the full buffered game on every poll, one
+    such packet would otherwise poison every subsequent export: the live view
+    freezes mid-game and completed games never get recorded. Skipping the bad
+    packet (and the cascade of packets referencing the entity it failed to
+    create) loses one hidden token entity; the rest of the game state exports
+    fine.
+    """
+
+    def export_packet(self, packet):
+        try:
+            super().export_packet(packet)
+        except Exception:
+            pass
 
 
 @dataclass
@@ -124,17 +146,35 @@ def parse_power_log(
     base_datetime = base_datetime or session_start(path.parent)
     base = base_datetime.date() if base_datetime else date.today()
 
+    # One fresh parser per game: a single parser fed a multi-game log raises
+    # InconsistentPlayerIdError when player ids shuffle between games, losing
+    # every game in the file (same rationale as the live tailer). Unparseable
+    # lines are skipped so one malformed packet can't sink the whole file.
+    games: list[tuple[Any, dict[int, str]]] = []  # (tree, names) per game
     parser = LogParser()
+
+    def bank_parser() -> LogParser:
+        parser.flush()
+        names = _player_names(parser)
+        for tree in parser.games:
+            games.append((tree, names))
+        return LogParser()
+
     with open(path, "r", encoding="utf-8", errors="replace") as f:
-        parser.read(f)
-    parser.flush()
+        for line in f:
+            if _CREATE_GAME_MARKER in line and parser.games:
+                parser = bank_parser()
+            try:
+                parser.read_line(line)
+            except Exception:
+                continue
+    bank_parser()
 
     metas = _scan_meta_blocks(path)
-    names = _player_names(parser)
     records: list[GameRecord] = []
     last_dt: datetime | None = base_datetime
 
-    for i, tree in enumerate(parser.games):
+    for i, (tree, names) in enumerate(games):
         meta = metas[i] if i < len(metas) else {}
         record = export_game(
             tree,
@@ -178,7 +218,7 @@ def export_game(
     if tree.end_time is None:
         return None
     try:
-        game = EntityTreeExporter(tree).export().game
+        game = TolerantExporter(tree).export().game
     except Exception:
         return None
     if game.tags.get(GameTag.STATE) != State.COMPLETE:

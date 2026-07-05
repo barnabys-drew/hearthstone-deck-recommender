@@ -124,6 +124,7 @@ def cmd_live(args) -> int:
     seen_discover_ids = set()  # to avoid re-printing the same pending choice
     deck_counts = None
     deck_game_no = -1
+    snap_failing = False  # warn once (not every poll) if snapshots stop exporting
 
     while True:
         dirs = session_dirs(log_root)
@@ -143,8 +144,16 @@ def cmd_live(args) -> int:
                 deck_game_no = tail.game_no
                 deck_counts = _current_deck_counts(current_dir, resolver)
                 seen_discover_ids.clear()  # reset for the new game
+                last_snap = None  # don't diff game N's opener against game N-1
+                snap_failing = False
             snap = tail.snapshot(resolver, deck_counts=deck_counts)
+            if not snap and last_snap is not None and not snap_failing:
+                # The log is flowing but the game stopped exporting mid-game —
+                # say so loudly instead of freezing the live view in silence.
+                snap_failing = True
+                print("!! Error: game state stopped exporting — live view is stale", flush=True)
             if snap:
+                snap_failing = False
                 write_snapshot_json(snap, json_file)
                 marker = (str(tail.path), snap["raw_turn"], snap.get("phase"), snap.get("game_over"))
 

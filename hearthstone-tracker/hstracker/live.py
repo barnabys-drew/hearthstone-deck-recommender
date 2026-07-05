@@ -20,13 +20,11 @@ from typing import Any
 
 from hearthstone.enums import CardType, GameTag, PlayState, Step, Zone
 from hslog import LogParser
-from hslog.export import EntityTreeExporter, FriendlyPlayerExporter
+from hslog.export import FriendlyPlayerExporter
 
-from .capture import _player_names
+from .capture import _CREATE_GAME_MARKER, TolerantExporter, _player_names
 from .cardevents import extract_card_events
 from .cards import HeroClassResolver
-
-_CREATE_GAME_MARKER = "GameState.DebugPrintPower() - CREATE_GAME"
 
 _FLAG_TAGS = (
     (GameTag.TAUNT, "taunt"),
@@ -204,7 +202,6 @@ def pending_discovers(
     """
     from hearthstone.enums import ChoiceType
     from hslog.packets import Choices, SendChoices
-    from hslog.export import EntityTreeExporter
 
     if friendly_id is None:
         return []
@@ -217,7 +214,7 @@ def pending_discovers(
 
         # Find all unresolved Discovers
         try:
-            game = EntityTreeExporter(tree).export().game
+            game = TolerantExporter(tree).export().game
         except Exception:
             return []
 
@@ -289,7 +286,7 @@ def snapshot_from_tree(
     except Exception:
         friendly_id = None
     try:
-        game = EntityTreeExporter(tree).export().game
+        game = TolerantExporter(tree).export().game
     except Exception:
         return None
     if not game.players:

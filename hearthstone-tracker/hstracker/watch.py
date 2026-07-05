@@ -10,6 +10,7 @@ from hslog import LogParser
 
 from .capture import (
     _COMPLETE_RE,
+    _CREATE_GAME_MARKER,
     _META_RE,
     HeroClassResolver,
     GameRecord,
@@ -34,6 +35,7 @@ class FileTail:
         self.offset = 0
         self.partial = ""
         self.parser = LogParser()
+        self.finished: list[tuple[Any, dict[int, str]]] = []  # (tree, names) per banked game
         self.metas: list[dict[str, Any]] = []
         self._meta_current: dict[str, Any] = {}
         self.exported = 0
@@ -50,6 +52,15 @@ class FileTail:
             self._meta_current[key] = int(value) if value.isdigit() else value
         if _COMPLETE_RE.search(line):
             self.completions += 1
+        if _CREATE_GAME_MARKER in line and self.parser.games:
+            # Bank the finished game and start a fresh parser for the next one:
+            # one parser fed multiple games raises InconsistentPlayerIdError
+            # when player ids shuffle between games, silently corrupting every
+            # game after the first (its lines all fail read_line below).
+            names = _player_names(self.parser)
+            for tree in self.parser.games:
+                self.finished.append((tree, names))
+            self.parser = LogParser()
         try:
             self.parser.read_line(line)
         except Exception:
@@ -81,14 +92,14 @@ class FileTail:
 
     def _collect(self) -> list[GameRecord]:
         records: list[GameRecord] = []
-        games = self.parser.games
+        current_names = _player_names(self.parser)
+        games = self.finished + [(t, current_names) for t in self.parser.games]
         metas = self.metas + ([self._meta_current] if self._meta_current else [])
-        names = _player_names(self.parser)
         base = (self.base_dt or datetime.now()).date()
         while self.exported < len(games):
             if self.exported >= self.completions:
                 break  # newest game hasn't reached STATE=COMPLETE yet
-            tree = games[self.exported]
+            tree, names = games[self.exported]
             if tree.end_time is None:
                 break
             meta = metas[self.exported] if self.exported < len(metas) else {}

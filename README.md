@@ -53,6 +53,15 @@ Also in this repo:
   (not model memory). Includes a rigorous checklist and traps from real-game
   validation. See its [architecture & checklist](hearthstone-live-coach/README.md).
 
+- **[`hearthstone-post-game-coach`](hearthstone-post-game-coach/SKILL.md)** — analyze
+  completed games to identify the deciding turn, suggest deck tweaks, and teach one
+  mechanics lesson for next time. Works with tracker game history and Power.log.
+
+- **[`hearthstone-deck-cleaner`](hearthstone-deck-cleaner/SKILL.md)** — identify
+  which cards are underperforming in a deck and should be cut. Ranks cards by their
+  win-rate delta vs. the deck's baseline, flags dead draws, and pairs with the
+  deck recommender's substitute-suggestion logic to propose replacements.
+
 > **Status:** Useful working prototype. Public-card/deck data changes often, so agents should still browse current top-deck sources before recommending a deck.
 
 ---

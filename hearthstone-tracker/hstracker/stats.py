@@ -115,6 +115,52 @@ def mulligan(conn, game_type=None, format_type=None, deck=None, min_games: int =
         ORDER BY offered DESC, keep_pct DESC""", params + [min_games])
 
 
+def cut_candidates(conn, game_type=None, format_type=None, deck=None, min_games: int = 5):
+    """Per friendly card: win rate vs the deck's baseline + dead draw rate.
+
+    Identifies cards that underperform relative to the deck's own winrate,
+    and cards that are drawn often but played rarely (clogging the hand).
+
+    Returns list[dict] with: card_id, games_drawn, wr_drawn, dead_draw_pct,
+    baseline_wr, wr_delta (wr_drawn - baseline_wr).
+    Sorted by wr_delta worst-first (biggest drags on deck surface first).
+    """
+    where, params = _filters(game_type, format_type, deck)
+    # Exclude BG/Mercs (unaliased for use in games-only baseline query)
+    constructed_filter = "game_type NOT LIKE 'GT_BATTLEGROUNDS%' AND game_type NOT LIKE 'GT_MERCENARIES%'"
+
+    # Get the deck's own baseline win rate
+    baseline_rows = _rows(conn, f"""
+        SELECT {_WINRATE} AS baseline_wr
+        FROM games WHERE {where} AND {constructed_filter}""", params)
+    baseline_wr = baseline_rows[0]["baseline_wr"] if baseline_rows and baseline_rows[0]["baseline_wr"] else 50.0
+
+    # Per-card: win rate when drawn, dead draw rate
+    card_rows = _rows(conn, f"""
+        SELECT gc.card_id,
+               SUM(gc.drawn > 0) AS games_drawn,
+               ROUND(100.0 * SUM(gc.drawn > 0 AND g.result = 'WON')
+                     / NULLIF(SUM(gc.drawn > 0), 0), 1) AS wr_drawn,
+               ROUND(100.0 * SUM(gc.drawn > 0 AND gc.played = 0)
+                     / NULLIF(SUM(gc.drawn > 0), 0), 1) AS dead_draw_pct
+        FROM game_cards gc JOIN games g ON g.id = gc.game_id
+        WHERE {where} AND {_CONSTRUCTED} AND gc.friendly = 1
+        GROUP BY gc.card_id
+        HAVING games_drawn >= ?
+        ORDER BY games_drawn DESC""", params + [min_games])
+
+    # Compute wr_delta and sort worst-first
+    results = []
+    for row in card_rows:
+        d = dict(row)
+        d["baseline_wr"] = baseline_wr
+        d["wr_delta"] = (d["wr_drawn"] or 0) - baseline_wr
+        results.append(d)
+
+    results.sort(key=lambda r: r["wr_delta"])
+    return results
+
+
 _BG = "game_type LIKE 'GT_BATTLEGROUNDS%'"
 
 

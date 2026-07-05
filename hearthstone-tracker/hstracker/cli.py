@@ -228,15 +228,19 @@ def cmd_stats(args) -> int:
                              stats_mod.resolve_card_names(
                                  stats_mod.bg_hero_picks(conn, min_games=args.min_games),
                                  resolver.name)))
-    if view in ("cards", "mulligan"):
+    if view in ("cards", "mulligan", "cut"):
         resolver = HeroClassResolver(allow_fetch=False)
         if view == "cards":
             rows = stats_mod.card_performance(conn, gt, ft, deck, min_games=args.min_games)
             sections.append(("Card performance (my cards)",
                              stats_mod.resolve_card_names(rows, resolver.name)))
-        else:
+        elif view == "mulligan":
             rows = stats_mod.mulligan(conn, gt, ft, deck, min_games=args.min_games)
             sections.append(("Mulligan (my keeps)",
+                             stats_mod.resolve_card_names(rows, resolver.name)))
+        else:  # view == "cut"
+            rows = stats_mod.cut_candidates(conn, gt, ft, deck, min_games=args.min_games)
+            sections.append(("Cut candidates (my cards)",
                              stats_mod.resolve_card_names(rows, resolver.name)))
     if view == "recent":
         sections.append(("Recent games", stats_mod.recent(conn, limit=args.limit)))
@@ -276,7 +280,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("stats", help="Show win-rate stats")
     p.add_argument("view", nargs="?", default="all",
                    choices=["all", "overall", "deck", "class", "matchup", "first",
-                            "cards", "mulligan", "bg", "bg-heroes", "recent"])
+                            "cards", "mulligan", "cut", "bg", "bg-heroes", "recent"])
     p.add_argument("--game-type", help="e.g. ranked, casual, arena, bg, or a raw GT_* value")
     p.add_argument("--format", help="standard, wild, twist, or a raw FT_* value")
     p.add_argument("--deck", help="Filter cards/mulligan views to decks whose name contains this")

@@ -24,6 +24,7 @@ this up; it can also be added by hand.
 ```bash
 ./hst backfill          # import every game found in existing log folders
 ./hst watch             # tail the live log; records each game as it ends
+./hst live              # stream the current game's state, turn by turn
 ./hst stats             # all stat views
 ./hst stats deck --game-type ranked --format standard
 ./hst stats matchup --game-type ranked --format standard --min-games 3
@@ -85,6 +86,29 @@ table: draws (deck→hand only, not created copies), plays (includes hero
 power), first turn played, and mulligan offered/kept — for both players'
 revealed cards. This powers the `cards` and `mulligan` views. BG/Mercs games
 are excluded (their "mulligan" is a hero pick).
+
+## Live game state (`hst live`)
+
+`./hst live` tails the game in progress and, each turn, prints a compact
+snapshot (your hand with costs, both boards with buffs, HP/armor/mana,
+opponent hand count and secrets) plus writes the full state as JSON to
+`~/.local/share/hearthstone-tracker/live.json` (atomic writes; override with
+`--json-file`). `--once` prints a single snapshot and exits.
+
+Only client-visible information exists in the log — the opponent's hand
+appears as a count of hidden cards, so this is a legal-information tool, not
+a cheat. Constructed-focused for now (Battlegrounds shop view is a possible
+later addition).
+
+The intended workflow with an AI CLI: run `hst live` in the background, watch
+its stdout for lines starting with `== TURN`, and on each of your turns have
+the agent read `live.json` and suggest a play. Turn markers land within a few
+seconds of the real turn.
+
+Implementation notes: each poll re-parses only the current game's lines with
+a fresh hslog parser — a single parser fed a multi-game Power.log can raise
+`InconsistentPlayerIdError` when player ids shuffle between games, and
+per-game parsing keeps polls fast (~0.5s) regardless of session length.
 
 ## Battlegrounds
 

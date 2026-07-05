@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from . import stats as stats_mod
 from .capture import parse_power_log, power_logs
@@ -87,6 +88,47 @@ def cmd_watch(args) -> int:
     return 0
 
 
+def cmd_live(args) -> int:
+    import time
+
+    from .config import DEFAULT_DB
+    from .live import LiveGameTail, format_snapshot, write_snapshot_json
+
+    log_root = find_log_root(args.logs_root)
+    json_file = Path(args.json_file) if args.json_file else DEFAULT_DB.parent / "live.json"
+    resolver = HeroClassResolver()
+
+    print(f"Live game state (json: {json_file}). Ctrl-C to stop.", flush=True)
+    tail: LiveGameTail | None = None
+    current_dir = None
+    last_marker = None  # (path, raw_turn, game_over) last printed
+
+    while True:
+        dirs = session_dirs(log_root)
+        newest = dirs[-1] if dirs else None
+        if newest and newest != current_dir:
+            current_dir = newest
+            tail = None
+            print(f"watching {newest}", flush=True)
+        path = current_dir / "Power.log" if current_dir else None
+        if path and path.exists() and (tail is None or tail.path != path):
+            tail = LiveGameTail(path)
+        if tail and (tail.poll() or args.once):
+            snap = tail.snapshot(resolver)
+            if snap:
+                write_snapshot_json(snap, json_file)
+                marker = (str(tail.path), snap["raw_turn"], snap.get("game_over"))
+                if marker != last_marker:
+                    last_marker = marker
+                    print(format_snapshot(snap), flush=True)
+                if args.once:
+                    return 0
+        if args.once:
+            print("no game in progress", flush=True)
+            return 1
+        time.sleep(args.interval)
+
+
 def cmd_stats(args) -> int:
     conn = connect(resolve_db_path(args.db))
     gt, ft = _game_type(args.game_type), _format_type(args.format)
@@ -157,6 +199,13 @@ def main(argv=None) -> int:
     p.add_argument("--logs-root", help="Hearthstone Logs directory (auto-detected by default)")
     p.add_argument("--interval", type=float, default=2.0, help="Poll interval in seconds")
     p.set_defaults(func=cmd_watch)
+
+    p = sub.add_parser("live", help="Tail the current game's state in real time (for live advice)")
+    p.add_argument("--logs-root", help="Hearthstone Logs directory (auto-detected by default)")
+    p.add_argument("--interval", type=float, default=3.0, help="Poll interval in seconds")
+    p.add_argument("--json-file", help="Where to write the latest snapshot JSON (default: next to the DB)")
+    p.add_argument("--once", action="store_true", help="Print one snapshot and exit")
+    p.set_defaults(func=cmd_live)
 
     p = sub.add_parser("stats", help="Show win-rate stats")
     p.add_argument("view", nargs="?", default="all",

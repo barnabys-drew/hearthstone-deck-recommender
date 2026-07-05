@@ -38,6 +38,7 @@ class HeroClassResolver:
     def __init__(self, *, allow_fetch: bool = True) -> None:
         self._by_card_id: dict[str, str] = {}
         self._names: dict[str, str] = {}
+        self._cards: dict[str, dict] = {}
         cards = None
         if CACHE.exists():
             try:
@@ -48,15 +49,24 @@ class HeroClassResolver:
             cards = _download_cards()
         for card in cards or []:
             cid, cls = card.get("id"), card.get("cardClass")
-            if cid and cls:
+            if not cid:
+                continue
+            self._cards[cid] = card
+            if cls:
                 self._by_card_id[cid] = cls
-            if cid and card.get("name"):
+            if card.get("name"):
                 self._names[cid] = card["name"]
 
     def name(self, card_id: str | None) -> str | None:
         if not card_id:
             return None
         return self._names.get(card_id)
+
+    def card(self, card_id: str | None) -> dict:
+        """Full HearthstoneJSON card dict (name, cost, text, ...), or {}."""
+        if not card_id:
+            return {}
+        return self._cards.get(card_id, {})
 
     def player_class(self, hero_card_id: str | None) -> str | None:
         if not hero_card_id:

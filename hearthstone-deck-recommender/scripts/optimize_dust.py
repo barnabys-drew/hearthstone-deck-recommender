@@ -2,30 +2,23 @@
 """
 Hearthstone Dust Optimizer
 
-Analyzes your collection and recommends cards to disenchant based on:
-- Rotation status
-- Meta relevance
-- Copy count
-- Dust value
+Analyzes your collection and lists extra card copies beyond the playable
+maximum (1x Legendary, 2x everything else) with the dust you'd gain.
 
-Optionally automates deletion via Playwright.
+This is the same set the in-game "Mass Disenchant" button clears —
+disenchanting can ONLY be done inside the Hearthstone client (there is no
+web collection UI on battle.net, and automating the game client violates
+Blizzard's EULA). Use this script to preview the number, then press the
+button in game: Collection -> crafting mode -> Mass Disenchant.
 """
 
 import json
 import sys
 import argparse
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional
 from collections import defaultdict
 import requests
-
-try:
-    from playwright.sync_api import sync_playwright
-except ImportError:
-    PLAYWRIGHT_AVAILABLE = False
-else:
-    PLAYWRIGHT_AVAILABLE = True
 
 
 @dataclass
@@ -115,53 +108,34 @@ def load_cards_json(path: Optional[str] = None) -> Dict[int, Dict]:
     return indexed
 
 
-def load_decks(path: str) -> List[Dict]:
-    """Load meta decks."""
-    with open(path) as f:
-        data = json.load(f)
-    return data.get("decks", [])
-
-
-def extract_cards_from_deckstring(deckstring: str) -> List[int]:
-    """Parse Hearthstone deckstring and return list of dbfIds."""
-    # Simplified: actual deckstring parsing is complex
-    # For now, return empty (full implementation would decode the string)
-    return []
-
-
-def get_protected_cards(decks: List[Dict]) -> Dict[int, int]:
-    """Get set of cards used in meta decks (protected from disenchant)."""
-    protected = defaultdict(int)
-    for deck in decks:
-        if "deckstring" in deck:
-            cards = extract_cards_from_deckstring(deck["deckstring"])
-            for card_id in cards:
-                protected[card_id] += 1
-    return dict(protected)
-
-
 def analyze_collection(
     collection: Dict[str, int],
     cards_db: Dict[int, Dict],
-    meta_decks: Optional[List[Dict]] = None,
-    threshold: int = 40,
+    threshold: int = 5,
 ) -> OptimizeResult:
     """
     Analyze collection and recommend disenchants.
 
+    Only flags EXTRA COPIES beyond the playable maximum (1 for Legendary,
+    2 for everything else) — the same set the in-game "Mass Disenchant"
+    button clears. Anything beyond that (e.g. "you never play this card")
+    is a judgment call this script deliberately does not make: an earlier
+    version flagged every non-meta minion and recommended disenchanting
+    ~900 legendaries, which was dangerously wrong.
+
+    Note: counts sum all finishes (normal + golden + diamond + signature),
+    and dust is estimated at the regular disenchant rate, so golden extras
+    are undervalued — the real number can only be higher.
+
     Args:
         collection: {dbfId: count} of owned cards
         cards_db: {dbfId: card_data} card database
-        meta_decks: List of meta decks for relevance ranking
-        threshold: Minimum dust value to consider
+        threshold: Minimum dust-per-copy to include
 
     Returns:
         OptimizeResult with ranked recommendations
     """
     result = OptimizeResult()
-    protected = get_protected_cards(meta_decks or [])
-    result.protected_cards = protected
-
     recommendations = []
 
     for card_id_str, count in collection.items():
@@ -176,44 +150,29 @@ def analyze_collection(
         card = cards_db[card_id]
         name = get_card_name(card)
         rarity = card.get("rarity", "COMMON")
-        card_type = card.get("type")
+
+        # Core/free cards can't be disenchanted (0 dust)
+        if card.get("set") in ("CORE", "LEGACY_FREE", "HERO_SKINS", "VANILLA"):
+            continue
 
         dust_value = get_dust_value(rarity)
-
-        # Skip cards below threshold
         if dust_value < threshold:
             continue
 
-        # Determine recommendation
-        reason = None
-        priority = "low"
+        max_playable = 1 if rarity == "LEGENDARY" else 2
+        extra_copies = count - max_playable
 
-        # Check if card is in meta decks
-        in_meta = card_id in protected
-
-        # For now, recommend duplicates and non-meta cards
-        if count > 2:  # More than 2 copies
-            reason = "duplicate_copies"
-            priority = "high"
-        elif not in_meta and card_type == "MINION":
-            reason = "low_meta_relevance"
-            priority = "medium"
-
-        if reason:
-            # Recommend disenchanting extra copies (keep 2 for non-legendaries)
-            disenchant_count = 1 if rarity == "LEGENDARY" else max(count - 2, 0)
-            if disenchant_count > 0:
-                rec = CardRec(
-                    card_id=card_id,
-                    name=name,
-                    count=disenchant_count,
-                    rarity=rarity,
-                    dust_per_copy=dust_value,
-                    total_dust=dust_value * disenchant_count,
-                    reason=reason,
-                    priority=priority,
-                )
-                recommendations.append(rec)
+        if extra_copies > 0:
+            recommendations.append(CardRec(
+                card_id=card_id,
+                name=name,
+                count=extra_copies,
+                rarity=rarity,
+                dust_per_copy=dust_value,
+                total_dust=dust_value * extra_copies,
+                reason="extra_copies",
+                priority="high",
+            ))
 
     # Sort by priority, then by dust value
     priority_order = {"high": 0, "medium": 1, "low": 2}
@@ -276,91 +235,30 @@ def format_json(result: OptimizeResult) -> str:
     }, indent=2)
 
 
-def automate_deletion(
-    result: OptimizeResult,
-    headless: bool = True,
-    dry_run: bool = True,
-) -> OptimizeResult:
-    """
-    Use Playwright to automate card deletion in Hearthstone.
-
-    Args:
-        result: Optimization result with approved recommendations
-        headless: Run browser in headless mode
-        dry_run: Don't actually delete, just show what would happen
-
-    Returns:
-        Updated result with completion status
-    """
-    if not PLAYWRIGHT_AVAILABLE:
-        print("Playwright not installed. Install with: pip install playwright", file=sys.stderr)
-        return result
-
-    if dry_run:
-        print("[DRY RUN] Would delete the following cards:")
-        for rec in result.recommendations:
-            print(f"  {rec.count}x {rec.name} ({rec.rarity})")
-        result.approval_status = "completed_dry_run"
-        return result
-
-    # TODO: Implement actual Playwright automation
-    # This would:
-    # 1. Launch Hearthstone/Battle.net
-    # 2. Navigate to collection
-    # 3. Find and click each card
-    # 4. Confirm deletion
-    # 5. Log results
-
-    print("Playwright automation not yet implemented. Use --dry-run to preview.")
-    result.approval_status = "failed"
-    return result
-
-
 def main():
     parser = argparse.ArgumentParser(
-        description="Analyze Hearthstone collection and recommend disenchants"
+        description="List extra Hearthstone card copies and the dust Mass Disenchant would yield"
     )
     parser.add_argument(
         "--collection",
         required=True,
-        help="Path to collection JSON (dbfId -> count map)",
+        help="Path to collection JSON (dbfId -> count map, or HSReplay export)",
     )
     parser.add_argument(
         "--cards-json",
         help="Path to cards.collectible.json (auto-fetched if omitted)",
     )
     parser.add_argument(
-        "--decks",
-        help="Path to meta_decks.json (optional, for meta relevance)",
-    )
-    parser.add_argument(
         "--view",
-        choices=["summary", "detailed", "json"],
+        choices=["summary", "json"],
         default="summary",
         help="Output format",
     )
     parser.add_argument(
-        "--automate",
-        action="store_true",
-        help="Enable Playwright automation",
-    )
-    parser.add_argument(
-        "--headless",
-        type=lambda x: x.lower() == "true",
-        default=True,
-        help="Run browser in headless mode",
-    )
-    parser.add_argument(
-        "--dry-run",
-        type=lambda x: x.lower() != "false",
-        default=True,
-        help="Don't actually delete cards (default: true)",
-    )
-    parser.add_argument(
         "--threshold",
         type=int,
-        default=40,
-        help="Minimum dust value to consider",
+        default=5,
+        help="Minimum dust-per-copy to include (default: 5, i.e. everything)",
     )
     parser.add_argument(
         "--output",
@@ -376,17 +274,11 @@ def main():
     print("Loading card database...", file=sys.stderr)
     cards_db = load_cards_json(args.cards_json)
 
-    meta_decks = []
-    if args.decks:
-        print("Loading meta decks...", file=sys.stderr)
-        meta_decks = load_decks(args.decks)
-
     # Analyze
     print("Analyzing collection...", file=sys.stderr)
     result = analyze_collection(
         collection,
         cards_db,
-        meta_decks=meta_decks,
         threshold=args.threshold,
     )
 
@@ -398,21 +290,15 @@ def main():
 
     print(output)
 
-    # Save to file if requested
     if args.output:
         with open(args.output, "w") as f:
             f.write(format_json(result))
         print(f"\nResults saved to {args.output}", file=sys.stderr)
 
-    # Automation
-    if args.automate:
-        print("\nEnabling Playwright automation...", file=sys.stderr)
-        result = automate_deletion(
-            result,
-            headless=args.headless,
-            dry_run=args.dry_run,
-        )
-        print(f"Status: {result.approval_status}", file=sys.stderr)
+    print(
+        "\nTo claim this dust: Hearthstone -> Collection -> crafting mode -> Mass Disenchant.",
+        file=sys.stderr,
+    )
 
     return 0
 

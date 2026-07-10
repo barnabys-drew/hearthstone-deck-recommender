@@ -1,195 +1,100 @@
-# Hearthstone Dust Optimizer — Quick Start
+# Hearthstone Dust Optimizer — Guide
 
-Built: July 2026  
-Skill: `/hearthstone-dust-optimizer`
+Skill: `/hearthstone-dust-optimizer` · Script: `hearthstone-deck-recommender/scripts/optimize_dust.py`
 
-## Overview
+## What it does
 
-The Dust Optimizer helps you:
-1. **Analyze your collection** — identify cards worth disenchanting
-2. **Rank recommendations** — by priority, dust value, and meta relevance
-3. **Automate deletion** — use Playwright to disenchant cards in Hearthstone UI
+Lists every extra card copy beyond the playable maximum (1x Legendary,
+2x everything else) and the dust you'd gain. That set is exactly what the
+in-game **Mass Disenchant** button clears.
 
-Perfect for pivoting to a new deck or freeing up dust quickly.
+## What it does NOT do (and why)
 
-## Basic Usage
+**It does not delete cards, and nothing external can.** Findings from the
+2026-07-09 build session:
 
-### 1. Analyze Your Collection (No Changes)
+- battle.net's website has **no collection or disenchant UI** — we attached
+  a browser to the live site and probed for it; it doesn't exist. Any
+  "web automation" of disenchanting targets a page that isn't there.
+- Disenchanting exists only inside the Hearthstone game client. Automating
+  the client (synthetic clicks/input) violates Blizzard's EULA and risks
+  account action. Don't.
+- The good news: **Mass Disenchant already automates the safe part.**
+  Collection → crafting mode (bottom-right toggle) → Mass Disenchant.
+  One click claims everything this script flags.
 
-```bash
-cd hearthstone-deck-recommender
+It also does not flag "cards you never play." An earlier version tried,
+with a stubbed-out meta-deck check, and recommended disenchanting ~900
+legendaries (~360k phantom dust). Cutting non-duplicates is a card-by-card
+human decision.
 
-python3 scripts/optimize_dust.py \
-  --collection ../path/to/collection.json \
-  --view summary
-```
-
-This prints recommendations without touching anything.
-
-### 2. Save Recommendations to File
-
-```bash
-python3 scripts/optimize_dust.py \
-  --collection ../path/to/collection.json \
-  --decks meta_decks.json \
-  --output recommendations.json
-```
-
-Now you have a JSON file you can review or share.
-
-### 3. Preview with Automation (Dry-Run)
+## Workflow
 
 ```bash
-python3 scripts/optimize_dust.py \
-  --collection ../path/to/collection.json \
-  --automate \
-  --dry-run true \
-  --headless false
+# 1. Export your collection (HSReplay: hsreplay.net/collection/mine/,
+#    DevTools → Network → copy the account_lo= JSON response)
+
+# 2. Preview the dust
+python3 hearthstone-deck-recommender/scripts/optimize_dust.py \
+  --collection collection.json --view summary
+
+# 3. Optionally save the list
+python3 hearthstone-deck-recommender/scripts/optimize_dust.py \
+  --collection collection.json --output disenchants.json
+
+# 4. In Hearthstone: Collection → crafting mode → Mass Disenchant
 ```
 
-Shows what WOULD be deleted without actually deleting anything. Browser stays open so you can see the UI.
+Accuracy: counts sum all finishes but dust is estimated at regular rates,
+so golden extras are undervalued — the in-game number is ground truth.
+Uncraftable sets (Core, Legacy-free, Vanilla) are excluded (0 dust).
 
-### 4. Actually Delete Cards
+## Appendix: WSL → Windows Chrome CDP setup
 
-```bash
-python3 scripts/optimize_dust.py \
-  --collection ../path/to/collection.json \
-  --automate \
-  --dry-run false \
-  --headless false
-```
+Built while investigating automation; the disenchant use case is dead, but
+this recipe lets Playwright in WSL drive a real logged-in Windows Chrome —
+useful for other automations (e.g. statement downloads).
 
-Browser opens, finds each card, and disenchants it. Watch the screen to verify.
+1. **Chrome 136+ ignores `--remote-debugging-port` on the default
+   profile** (security change). You must pass a dedicated user-data dir —
+   which also means the debug Chrome runs alongside your normal Chrome,
+   no need to kill anything:
 
-## Command Flags
+   ```powershell
+   & "C:\Program Files\Google\Chrome\Application\chrome.exe" `
+     --remote-debugging-port=9222 `
+     --user-data-dir=C:\Users\<you>\chrome-debug-profile
+   ```
 
-| Flag | Purpose | Default |
-|------|---------|---------|
-| `--collection PATH` | Path to collection JSON | **required** |
-| `--decks PATH` | Meta decks JSON (for relevance) | optional |
-| `--cards-json PATH` | Card database JSON | auto-fetch |
-| `--view` | Output format: summary/detailed/json | summary |
-| `--automate` | Enable Playwright automation | off |
-| `--dry-run` | Preview only, don't delete | true |
-| `--headless` | Run browser headless | true |
-| `--threshold` | Minimum dust to consider | 40 |
-| `--output` | Save results to JSON | optional |
+   (In PowerShell the leading `&` call operator is required.)
 
-## Workflow Example
+2. **WSL mirrored networking needs loopback access** to reach the Windows
+   port. In `C:\Users\<you>\.wslconfig`:
 
-### Scenario: Pivoting from Aya Rogue to a new deck
+   ```ini
+   [experimental]
+   hostAddressLoopback=true
+   ```
 
-```bash
-# Step 1: See what you can disenchant
-python3 scripts/optimize_dust.py \
-  --collection ~/.local/share/hearthstone-tracker/collection.json \
-  --view summary
+   then `wsl --shutdown` and reopen the terminal.
 
-# Step 2: Review recommendations (printed to screen)
-# Output shows: 560 dust available, 5 high-priority cards, etc.
+3. **Verify from WSL**, then attach:
 
-# Step 3: Save for reference
-python3 scripts/optimize_dust.py \
-  --collection ~/.local/share/hearthstone-tracker/collection.json \
-  --output my_disenchants.json
+   ```bash
+   curl -s http://localhost:9222/json/version   # should return Chrome JSON
+   ```
 
-# Step 4: Preview automation (dry-run)
-python3 scripts/optimize_dust.py \
-  --collection ~/.local/share/hearthstone-tracker/collection.json \
-  --automate \
-  --dry-run true \
-  --headless false
+   ```python
+   from playwright.sync_api import sync_playwright
+   p = sync_playwright().start()
+   browser = p.chromium.connect_over_cdp("http://localhost:9222")
+   page = browser.contexts[0].new_page()
+   ```
 
-# Step 5: If satisfied, actually delete
-python3 scripts/optimize_dust.py \
-  --collection ~/.local/share/hearthstone-tracker/collection.json \
-  --automate \
-  --dry-run false \
-  --headless false
-```
-
-## Important Notes
-
-### Before You Disenchant
-
-1. **Review recommendations manually** — the tool makes smart guesses, but you know your decks best
-2. **Don't disenchant cards you plan to use** — check future decks you're thinking of building
-3. **Golden copies first** — automation prioritizes golden/premium versions (same dust, less regret)
-4. **One expansion at a time** — if you're nervous, start with just the oldest expansion's trash
-
-### Playwright Setup
-
-Automation requires Playwright:
-
-```bash
-pip install playwright
-playwright install chromium
-```
-
-### Collection Format
-
-The tool accepts:
-- **HSReplay JSON** — your exported collection from hsreplay.net (auto-detected)
-- **Simple map** — `{dbfId: count}` JSON object
-- **Heroku-compatible** — single-account or multi-account HSReplay exports
-
-### Limitations
-
-- **Doesn't understand meta shifts** — uses current meta only
-- **Assumes max copies** — keeps 2 of everything (1 if Legendary), adjust manually if you want more
-- **Automation is UI-fragile** — if Blizzard changes the collection UI, selectors need updating
-- **Account-specific** — must run while logged into the Hearthstone account you want to disenchant from
-
-## Troubleshooting
-
-### "Playwright not installed"
-
-```bash
-pip install playwright
-playwright install chromium
-```
-
-### "Could not find search box" / "Disenchant button not found"
-
-Blizzard may have updated the UI. You can:
-1. File an issue with screenshots
-2. Manually find the correct selectors in browser DevTools
-3. Edit `hearthstone_disenchant_automation.py` and update the selectors
-
-### "Collection not found"
-
-Verify your path:
-```bash
-ls -la ~/.local/share/hearthstone-tracker/collection.json
-```
-
-If missing, export from HSReplay or your deck tracker.
-
-### Automation hangs
-
-The browser might be waiting for login. Make sure you're logged into Battle.net before running with `--automate`.
-
-## Example Output
-
-```
-DISENCHANT RECOMMENDATIONS
-========================================
-
-HIGH PRIORITY:
-  - 2x Old Card (Common, 5 dust each = 10 total)
-      reason: duplicate_copies
-  - 3x Outdated Spell (Rare, 20 dust each = 60 total)
-      reason: duplicate_copies
-
-MEDIUM PRIORITY:
-  - 1x Niche Minion (Epic, 100 dust)
-      reason: low_meta_relevance
-
-TOTAL DUST AVAILABLE: 170
-```
+Log into whatever site you're automating once in the debug profile; the
+session persists in `chrome-debug-profile` for future runs.
 
 ## See Also
 
-- `/hearthstone-deck-recommender` — Pick your next deck
-- `/hearthstone-deck-builder` — Build it after freeing up dust
-- `CLAUDE.md` — Project configuration
+- `/hearthstone-deck-recommender` — pick the next deck to spend dust on
+- `.claude/skills/hearthstone-dust-optimizer.md` — skill definition

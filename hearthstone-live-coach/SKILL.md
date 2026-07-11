@@ -38,19 +38,32 @@ same mistake doesn't repeat game after game.
 
 ## Setup (once per session)
 
-1. Start the state feed in the background:
+1. Start the feed via the launcher — NEVER by running `./hst live` directly:
    ```bash
-   cd <repo>/hearthstone-tracker && ./hst live
+   <repo>/hearthstone-tracker/coach_feed.sh
    ```
-2. Watch its stdout for these markers (e.g. with a background Monitor/tail):
+   It kills any zombie feed from previous sessions (detached children outlive
+   their shell wrappers and TaskStop — a 2-day-old zombie once fed a whole
+   session through a corrupt shared log), starts exactly ONE feed appending to
+   a FRESH per-run log file (no truncation races with tail -F), verifies it
+   survived startup, and prints `FEED_PID=` and `LOG=<path>` on success.
+2. Watch that LOG with a persistent Monitor running the repo's filter plus a
+   liveness watchdog (silence must never masquerade as a quiet game):
+   ```bash
+   { tail -n0 -F <LOG> & while sleep 30; do pgrep -f "hstracker live" >/dev/null || { echo "!! FEED PROCESS DIED — coaching is blind until coach_feed.sh is rerun"; break; }; done; } | awk -f <repo>/hearthstone-tracker/coach_filter.awk
    ```
-   ^== MULLIGAN|^== TURN.*your turn|^== EXTRA TURN|^== DISCOVER PENDING|^== UPDATE|^== GAME OVER|^!!|^   |Traceback|Error
-   ```
-   The `^   ` alternation matters: the indented detail lines under each turn
-   marker (hand, boards, deck-left) ride along in the same notification, so
-   most turns you can advise **directly from the marker block with zero file
-   reads**. Do NOT trigger on opponent turns — stay quiet during them unless
-   the user asks. `^== EXTRA TURN` is the one opponent-side exception (see below).
+   `coach_filter.awk` passes ONLY decision points: MULLIGAN / your-turn TURN
+   blocks (with their indented detail lines) / EXTRA TURN / DISCOVER PENDING /
+   GAME OVER / `!!` + errors / and `== UPDATE` lines that ADD cards to YOUR
+   hand (discover results, generated cards — e.g. a bomb discounted to 0).
+   Opponent-turn chatter is dropped at the filter so the model isn't queued
+   behind filler when a real decision arrives — do not respond to events the
+   filter would have dropped, and do not post filler acknowledgements between
+   events; each notification you do receive deserves a real answer.
+3. After arming, verify end-to-end by appending a fake `== TURN ... (your
+   turn)` line to the LOG and confirming the notification arrives within ~2s.
+   The turn-marker block carries hand, boards, and deck-left, so most turns
+   need **zero file reads**.
    - `^== DISCOVER PENDING` fires mid-turn when the coach's poll lands in the window between a
      Discover choice appearing and you clicking it (best-effort, not guaranteed). Multiple
      simultaneous discovers each fire their own line. Each option now carries its cost and

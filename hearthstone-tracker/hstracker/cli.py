@@ -103,6 +103,28 @@ def _current_deck_counts(session_dir, resolver) -> dict[str, int] | None:
     return counts or None
 
 
+def _record_game_and_refresh_stats(session_dir, resolver, overlay_dir) -> None:
+    """On game end: persist the finished game and refresh the stats panel.
+
+    Best-effort — the live loop must never die over stats bookkeeping.
+    """
+    try:
+        from .db import connect, save_games
+        from .deckstats import write_deck_stats
+
+        conn = connect(resolve_db_path(None))
+        if session_dir:
+            deck_events = [ev for path in deck_logs(session_dir) for ev in parse_decks_log(path)]
+            for path in power_logs(session_dir):
+                records = parse_power_log(path, resolver)
+                attach_decks(records, deck_events)
+                save_games(conn, records)
+        write_deck_stats(conn, overlay_dir)
+        conn.close()
+    except Exception as exc:
+        print(f"!! deck stats refresh failed: {exc}", flush=True)
+
+
 def cmd_live(args) -> int:
     import time
 
@@ -120,6 +142,7 @@ def cmd_live(args) -> int:
     resolver = HeroClassResolver()
     lesson_store = StoreWatcher()  # mtime-cached; new lessons picked up mid-game
     mirror_store()  # give the overlay lessons panel the structured store at startup
+    _record_game_and_refresh_stats(None, resolver, overlay_dir)  # stats panel at startup
 
     print(f"Live game state (json: {json_file}). Ctrl-C to stop.", flush=True)
     if overlay_dir:
@@ -204,6 +227,7 @@ def cmd_live(args) -> int:
                         and snap.get("game_over")
                     ):
                         print(f"== GAME OVER: {snap['game_over']}", flush=True)
+                        _record_game_and_refresh_stats(current_dir, resolver, overlay_dir)
                         last_marker = marker
                         last_snap = snap
                         if args.once:

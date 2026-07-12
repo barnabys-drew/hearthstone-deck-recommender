@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hearthstone-tra
 from hstracker.overlay import resolve_overlay_dir  # noqa: E402
 
 RENDERER_DIR = Path(__file__).resolve().parent / "renderer"
-DATA_FILES = {"live.json", "advice.json", "lessons.json", "lesson_store.json"}
-MIME = {".html": "text/html", ".js": "text/javascript", ".css": "text/css"}
+DATA_FILES = {"live.json", "advice.json", "lessons.json", "lesson_store.json", "deck_stats.json"}
+MIME = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".ttf": "font/ttf"}
 ART_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 ART_REMOTE = "https://art.hearthstonejson.com/v1/tiles/{card_id}.png"
 
@@ -96,7 +96,8 @@ class OverlayHandler(BaseHTTPRequestHandler):
 
     def _send_static(self, name: str) -> None:
         file_path = (RENDERER_DIR / name).resolve()
-        if file_path.parent != RENDERER_DIR or not file_path.is_file():
+        allowed_parents = (RENDERER_DIR, RENDERER_DIR / "fonts")
+        if file_path.parent not in allowed_parents or not file_path.is_file():
             return self._send_error(404, "not found")
         body = file_path.read_bytes()
         self.send_response(200)

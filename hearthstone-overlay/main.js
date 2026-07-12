@@ -9,8 +9,8 @@ const configPath = path.join(appDir, 'config.json');
 
 // Four standalone always-on-top panels; each has its own saved bounds and
 // visibility, and every one is draggable + resizable on all four edges.
-const PANELS = ['advice', 'deck', 'opponent', 'lessons'];
-const DATA_FILES = ['live.json', 'advice.json', 'lessons.json', 'lesson_store.json'];
+const PANELS = ['advice', 'deck', 'opponent', 'lessons', 'stats'];
+const DATA_FILES = ['live.json', 'advice.json', 'lessons.json', 'lesson_store.json', 'deck_stats.json'];
 
 const defaults = {
   overlayDir: process.env.HS_OVERLAY_DIR_WIN || path.join(os.homedir(), 'hs-overlay'),
@@ -22,6 +22,7 @@ const defaults = {
     deck: { x: 490, y: 96, width: 260, height: 700, visible: true },
     opponent: { x: 762, y: 96, width: 260, height: 480, visible: true },
     lessons: { x: 48, y: 668, width: 430, height: 220, visible: true },
+    stats: { x: 48, y: 900, width: 430, height: 150, visible: true },
   },
   hotkeys: {
     toggleClickThrough: 'CommandOrControl+Shift+F',
@@ -33,6 +34,7 @@ const defaults = {
     toggleDeck: 'CommandOrControl+Shift+2',
     toggleOpponent: 'CommandOrControl+Shift+3',
     toggleLessons: 'CommandOrControl+Shift+4',
+    toggleStats: 'CommandOrControl+Shift+5',
   },
 };
 
@@ -188,6 +190,7 @@ function registerHotkeys() {
   registerHotkey(h.toggleDeck, () => togglePanel('deck'));
   registerHotkey(h.toggleOpponent, () => togglePanel('opponent'));
   registerHotkey(h.toggleLessons, () => togglePanel('lessons'));
+  registerHotkey(h.toggleStats, () => togglePanel('stats'));
 }
 
 // Push, don't poll: watch the shared folder and nudge only the affected

@@ -10,6 +10,7 @@ let live = null;
 let advice = null;
 let lessonsDoc = null;
 let lessonStore = null;
+let deckStats = null;
 let deckSeen = new Map(); // card key -> last seen copies-left, to flash changed rows
 
 // Card art: resolved through the host (Electron disk cache / serve.py cache),
@@ -120,6 +121,18 @@ function renderLessons() {
   $('lessons').innerHTML = sections.length ? sections.join('') : '<div class="empty">No lessons recorded yet.</div>';
 }
 
+function renderStats() {
+  if (!deckStats) return;
+  $('stats-deck').textContent = deckStats.deck || '';
+  $('stats-record').textContent = `${deckStats.wins}–${deckStats.losses} · ${deckStats.winrate}% over ${deckStats.games} games`;
+  $('stats-record').classList.remove('empty');
+  $('stats-last10').innerHTML = (deckStats.last10 || []).map((w) => `<span class="pip ${w ? 'w' : 'l'}"></span>`).join('')
+    + (deckStats.last10?.length ? '<span class="pip-label">last 10, newest first</span>' : '');
+  $('stats-matchups').innerHTML = (deckStats.matchups || []).map((m) =>
+    `<div class="matchup"><span class="mu-class">${escapeHtml(m.opp_class)}</span><span class="mu-rec">${m.wins}–${m.games - m.wins}</span><span class="mu-rate ${m.winrate >= 50 ? 'good' : 'bad'}">${m.winrate}%</span></div>`
+  ).join('');
+}
+
 function render() {
   const app = $('app');
   app.classList.toggle('waiting', !live || !live.me);
@@ -127,6 +140,7 @@ function render() {
   if (panel === 'opponent' || panel === 'all') renderOpponent();
   if (panel === 'advice' || panel === 'all') renderAdvice();
   if (panel === 'lessons' || panel === 'all') renderLessons();
+  if (panel === 'stats' || panel === 'all') renderStats();
 }
 
 async function pollFile(fileName) {
@@ -138,6 +152,7 @@ async function pollFile(fileName) {
       if (fileName === 'advice.json') advice = result.data;
       if (fileName === 'lessons.json') lessonsDoc = result.data;
       if (fileName === 'lesson_store.json') lessonStore = result.data;
+      if (fileName === 'deck_stats.json') deckStats = result.data;
       return true;
     }
   } catch (_error) {
@@ -152,7 +167,8 @@ const FILES_BY_PANEL = {
   deck: ['live.json'],
   opponent: ['live.json'],
   lessons: ['lesson_store.json', 'live.json'],
-  all: ['live.json', 'advice.json', 'lessons.json', 'lesson_store.json'],
+  stats: ['deck_stats.json'],
+  all: ['live.json', 'advice.json', 'lessons.json', 'lesson_store.json', 'deck_stats.json'],
 };
 
 async function tick() {

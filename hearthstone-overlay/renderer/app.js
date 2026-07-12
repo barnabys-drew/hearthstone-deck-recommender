@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, groupLessons } = window.OverlayLogic;
+const { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, panelLessons, lessonLabel } = window.OverlayLogic;
 
 // Which panel this window shows: advice | deck | opponent | lessons | all (browser mode).
 const panel = new URLSearchParams(location.search).get('panel') || 'all';
@@ -100,20 +100,22 @@ function renderAdvice() {
 }
 
 function renderLessons() {
-  // Live trigger matches first (relevant to the CURRENT board), then general
-  // principles, then a few points per deck from the structured store.
-  const matched = (live?.lessons_matched || []).map((m) => m.cost ? `${m.lesson} — cost last time: ${m.cost}` : m.lesson);
-  const grouped = groupLessons(lessonStore?.lessons || []);
-  const row = (rec) => `<div class="lesson">${escapeHtml(rec.lesson)}</div>`;
+  // Red live matches (full text — they matter RIGHT NOW), then ONE
+  // synthesized cross-game headline, then two glanceable tips.
+  const matchedRecs = live?.lessons_matched || [];
+  const { headline, points } = panelLessons(lessonStore?.lessons || [], { exclude: matchedRecs.map((m) => m.lesson) });
   const sections = [];
-  if (matched.length) {
-    sections.push(matched.map((l) => `<div class="lesson matched">${escapeHtml(l)}</div>`).join(''));
+  if (matchedRecs.length) {
+    sections.push(matchedRecs.map((m) => `<div class="lesson matched">${escapeHtml(m.cost ? `${m.lesson} — cost last time: ${m.cost}` : m.lesson)}</div>`).join(''));
   }
-  if (grouped.general.length) {
-    sections.push(`<div class="lessons-title">General</div>` + grouped.general.map(row).join(''));
+  if (headline) {
+    sections.push(`<div class="lesson headline">${escapeHtml(headline.lesson)}</div>`);
   }
-  for (const { deck, items } of grouped.decks) {
-    sections.push(`<div class="lessons-title">${escapeHtml(deck)}</div>` + items.map(row).join(''));
+  if (points.length) {
+    sections.push(points.map((rec) => {
+      const tag = (rec.deck || '').trim();
+      return `<div class="lesson">${tag ? `<span class="lesson-tag">${escapeHtml(tag)}</span> ` : ''}${escapeHtml(lessonLabel(rec))}</div>`;
+    }).join(''));
   }
   $('lessons').innerHTML = sections.length ? sections.join('') : '<div class="empty">No lessons recorded yet.</div>';
 }

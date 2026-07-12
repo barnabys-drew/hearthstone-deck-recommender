@@ -61,6 +61,8 @@ class Lesson(BaseModel):
     """One recorded misplay and the better line, with its firing trigger."""
 
     lesson: str
+    title: str | None = None  # short display form for the overlay panel (~50 chars)
+    headline: bool = False  # the ONE synthesized cross-game insight (newest wins)
     trigger: LessonTrigger = Field(default_factory=LessonTrigger)
     cost: str | None = None  # what the mistake cost, e.g. "7 face damage"
     deck: str | None = None  # which of MY decks this is about; None = general principle
@@ -73,6 +75,14 @@ class Lesson(BaseModel):
     def _clip(cls, value: str) -> str:
         value = " ".join(value.split())
         return value[:239] + "…" if len(value) > 240 else value
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def _clip_title(cls, value):
+        if value is None:
+            return None
+        text = " ".join(str(value).split())
+        return (text[:59] + "…" if len(text) > 60 else text) or None
 
 
 def load_store(path: Path | None = None) -> list[Lesson]:

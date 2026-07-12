@@ -47,25 +47,25 @@
     return wrongTurn || age > Number(staleSeconds || 75);
   }
 
-  // Lessons panel structure: general principles first (no deck), then a few
-  // points per deck, newest first, capped so the panel stays scannable.
-  function groupLessons(records, { perGroup = 4 } = {}) {
-    const general = [];
-    const byDeck = new Map();
-    for (const rec of records || []) {
-      if (!rec || !rec.lesson) continue;
-      const deck = (rec.deck || '').trim();
-      if (!deck) {
-        general.push(rec);
-      } else {
-        if (!byDeck.has(deck)) byDeck.set(deck, []);
-        byDeck.get(deck).push(rec);
-      }
-    }
-    return {
-      general: general.slice(0, perGroup),
-      decks: [...byDeck.entries()].map(([deck, items]) => ({ deck, items: items.slice(0, perGroup) })),
-    };
+  // Lessons panel structure: ONE synthesized headline (a coach-authored read
+  // across all games, marked headline:true — newest wins), then two short
+  // glanceable points (deck tips / kill mechanics). Anything currently
+  // matched (shown in red above) is excluded so nothing appears twice.
+  function panelLessons(records, { points = 2, exclude = [] } = {}) {
+    const excluded = new Set(exclude);
+    const usable = (records || []).filter((rec) => rec && rec.lesson && !excluded.has(rec.lesson));
+    const headline = usable.find((rec) => rec.headline) || null;
+    const rest = usable.filter((rec) => rec !== headline);
+    // Prefer deck-tagged tips for the points; fall back to general ones.
+    const deckTips = rest.filter((rec) => (rec.deck || '').trim());
+    const generalTips = rest.filter((rec) => !(rec.deck || '').trim());
+    return { headline, points: [...deckTips, ...generalTips].slice(0, points) };
+  }
+
+  // Short display form for a panel row: title if present, else clipped lesson.
+  function lessonLabel(rec, max = 70) {
+    const text = rec.title || rec.lesson || '';
+    return text.length > max ? `${text.slice(0, max - 1)}…` : text;
   }
 
   // Deep-merge saved config over defaults, per-panel and per-hotkey, so a
@@ -80,5 +80,5 @@
     return cfg;
   }
 
-  return { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, mergeConfig, groupLessons };
+  return { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, mergeConfig, panelLessons, lessonLabel };
 });

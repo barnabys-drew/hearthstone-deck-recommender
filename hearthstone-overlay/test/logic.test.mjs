@@ -3,28 +3,29 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, mergeConfig, groupLessons } = require('../renderer/logic.js');
+const { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, mergeConfig, panelLessons, lessonLabel } = require('../renderer/logic.js');
 
-test('groupLessons: general first, then per-deck groups, capped', () => {
+test('panelLessons: one headline + two points, deck tips preferred, matched excluded', () => {
   const records = [
-    { lesson: 'g1' },
-    { lesson: 'a1', deck: 'Aya Rogue' },
-    { lesson: 'g2', deck: '  ' },
-    { lesson: 'a2', deck: 'Aya Rogue' },
-    { lesson: 'b1', deck: 'Burn Warrior' },
-    { lesson: 'a3', deck: 'Aya Rogue' },
-    { lesson: 'a4', deck: 'Aya Rogue' },
-    { lesson: 'a5', deck: 'Aya Rogue' },
-    null,
-    { deck: 'no-lesson-field' },
+    { lesson: 'old headline', headline: true },
+    { lesson: 'general tip 1' },
+    { lesson: 'deck tip 1', deck: 'Aya Rogue' },
+    { lesson: 'matched one', deck: 'Aya Rogue' },
+    { lesson: 'deck tip 2', deck: 'Aya Rogue' },
   ];
-  const g = groupLessons(records, { perGroup: 4 });
-  assert.deepEqual(g.general.map((r) => r.lesson), ['g1', 'g2']);
-  assert.equal(g.decks.length, 2);
-  assert.equal(g.decks[0].deck, 'Aya Rogue');
-  assert.deepEqual(g.decks[0].items.map((r) => r.lesson), ['a1', 'a2', 'a3', 'a4'], 'capped at 4');
-  assert.deepEqual(g.decks[1].items.map((r) => r.lesson), ['b1']);
-  assert.deepEqual(groupLessons(null), { general: [], decks: [] });
+  const p = panelLessons(records, { exclude: ['matched one'] });
+  assert.equal(p.headline.lesson, 'old headline');
+  assert.deepEqual(p.points.map((r) => r.lesson), ['deck tip 1', 'deck tip 2'], 'deck tips win, matched excluded');
+  const noDeck = panelLessons([{ lesson: 'h', headline: true }, { lesson: 'g1' }, { lesson: 'g2' }, { lesson: 'g3' }]);
+  assert.deepEqual(noDeck.points.map((r) => r.lesson), ['g1', 'g2'], 'falls back to general tips');
+  assert.deepEqual(panelLessons(null), { headline: null, points: [] });
+});
+
+test('lessonLabel: prefers title, clips long text', () => {
+  assert.equal(lessonLabel({ lesson: 'long text here', title: 'Short' }), 'Short');
+  const clipped = lessonLabel({ lesson: 'x'.repeat(100) }, 20);
+  assert.equal(clipped.length, 20);
+  assert.ok(clipped.endsWith('…'));
 });
 
 test('escapeHtml escapes all five HTML-significant characters', () => {

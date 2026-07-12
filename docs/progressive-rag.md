@@ -60,18 +60,38 @@ SOC transfer: measure the KB before buying vector search. Replay historical
 alerts through candidate retrieval configs. Find dispositions that never fire
 (stale knowledge) and alerts that retrieve nothing (coverage gaps).
 
-## Phase 2 — Tiered retrieval with escalation (lexical tier)
+## Phase 2 — Tiered retrieval with escalation (lexical tier) 🧪 LAB-BUILT (2026-07-12), live-gated
 
 **Entry gate:** Phase-1 report shows real misses — misplays where a relevant
-lesson existed but its exact trigger didn't fire.
+lesson existed but its exact trigger didn't fire. *Gate not yet satisfied
+(telemetry is hours old), so Tier 1 shipped as lab code: it always runs in
+`rag-replay`; the live loop runs it only with `HS_RAG_T1=1`.*
 
-Build:
-- Tier 1 runs only when Tier 0 returns nothing: pure-python BM25-style
-  lexical scoring of lesson text against snapshot text (card names, rules
-  text, opponent class). Threshold-gated to stay quiet.
-- Fuzzy matches are labeled in the marker (`[T1 fuzzy]`) so the coach can
-  weigh them below exact hits.
-- Tier usage feeds the Phase-1 log, so the report shows what each tier earns.
+Built (`hstracker/lexical.py`):
+- Tier 1 runs only when Tier 0 returns nothing: pure-python BM25
+  (k1=1.5, b=0.75) of lesson text against snapshot text (card names, rules
+  text, flags, opponent class). Gated by score threshold AND ≥2-token
+  informative overlap; headline records excluded (already always on the
+  panel); trigger-less lessons ARE eligible — that's the tier's point.
+- Fuzzy marker label `[T1 fuzzy]` + `#id`, so the coach weighs them below
+  exact hits and can still ack with `--applied-lesson`.
+- Tier usage feeds the Phase-1 log; `rag-report`/`rag-replay` show a "Tier
+  earnings" section (turns each tier ran vs fired).
+- Threshold tuned on session `Hearthstone_2026_07_12_04_50_10` (13 games,
+  18 t0-miss turns): thresholds 2.0/5.5/6.5/7.5 fired on 18/12/8/5 miss
+  turns → `SCORE_THRESHOLD = 7.5` (~28% of misses). Override per run with
+  `HS_RAG_T1_MIN`; unthresholded scores via `rag-replay --candidates`.
+
+**Acceptance evidence required to flip the live default ON** (all three):
+1. ≥20 real telemetry games showing a miss backlog (`rag-report` misses, or
+   dead trigger-less lessons that replay shows t1 firing on those games).
+2. Replay over ≥2 sessions: user eyeballs every t1 fire (~70%+ judged
+   relevant). First pass on the tuning session was MIXED — e.g. "Race swings
+   go FACE, never into Lifesteal" vs Hunter looked right, but "Deny board
+   vs Aura Paladin" fired vs Shaman (matchup mismatch) — so the threshold
+   or query may need work before the flip. That is the lab doing its job.
+3. `--tier0-only` A/B diff stays purely additive (verified once already).
+If the evidence never materializes, t1 stays lab-only — also a valid outcome.
 
 Teaches: escalation/fallback retrieval, precision-vs-recall tiering,
 confidence labeling, cost gating.

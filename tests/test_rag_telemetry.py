@@ -102,6 +102,24 @@ class RagTurnLoggerTests(unittest.TestCase):
         self.assertEqual(len(outcomes), 1)  # fallback fired; on_game_over deduped
         self.assertEqual(outcomes[0]["result"], "WON")
 
+    def test_annotated_results_carry_tier_and_score(self) -> None:
+        results = [{"lesson": self.corpus[0], "tier": "t1", "score": 3.14159}]
+        self.rag.on_snapshot(snap(), results, self.corpus, session="S", game_no=1,
+                             tiers_ran=["t0", "t1"])
+        match = [e for e in self.events() if e["ev"] == "match"][0]
+        self.assertEqual(match["tiers"], ["t0", "t1"])
+        self.assertEqual(match["matched"][0]["tier"], "t1")
+        self.assertEqual(match["matched"][0]["score"], 3.142)
+
+    def test_tier_change_reemits_same_lesson(self) -> None:
+        rec = self.corpus[0]
+        self.rag.on_snapshot(snap(), [{"lesson": rec, "tier": "t1", "score": 2.5}],
+                             self.corpus, session="S", game_no=1, tiers_ran=["t0", "t1"])
+        self.rag.on_snapshot(snap(), [{"lesson": rec, "tier": "t0", "score": None}],
+                             self.corpus, session="S", game_no=1, tiers_ran=["t0"])
+        matches = [e for e in self.events() if e["ev"] == "match"]
+        self.assertEqual([m["matched"][0]["tier"] for m in matches], ["t1", "t0"])
+
     def test_on_game_over_prefers_record_fields(self) -> None:
         record = mock.Mock(result="LOST", deck_name="Aya Rogue",
                            opponent_class="MAGE", turns=12,
@@ -248,6 +266,27 @@ class ReportMathTests(unittest.TestCase):
         self.assertEqual(rows[0]["games"], 2)
         self.assertEqual(rows[0]["your_turns"], 3)
         self.assertEqual(rows[0]["turns_matched"], 1)
+
+    def test_tier_rows_split_t0_and_t1_earnings(self) -> None:
+        t1_hit = {"ev": "match", "session": "S", "game_no": 3, "ts": 3000.0,
+                  "raw_turn": 5, "turn": 3, "tiers": ["t0", "t1"],
+                  "matched": [{"id": "abc123abc123", "tier": "t1",
+                               "conds": 0, "score": 2.5}]}
+        t1_miss = {"ev": "match", "session": "S", "game_no": 3, "ts": 3001.0,
+                   "raw_turn": 7, "turn": 4, "tiers": ["t0", "t1"], "matched": []}
+        rows = raglog.tier_rows(join_games(self.events + [t1_hit, t1_miss]))
+        t0 = next(r for r in rows if r["tier"] == "t0")
+        t1 = next(r for r in rows if r["tier"].startswith("t1"))
+        self.assertEqual((t1["turns_ran"], t1["turns_fired"], t1["lessons_fired"]),
+                         (2, 1, 1))
+        # Phase-1-era events (self.events) count as t0-only turns.
+        self.assertEqual(t0["turns_ran"], 5)
+        self.assertEqual(t0["turns_fired"], 1)
+
+    def test_tier_rows_on_phase1_only_log_shows_t1_never_ran(self) -> None:
+        rows = raglog.tier_rows(join_games(self.events))
+        t1 = next(r for r in rows if r["tier"].startswith("t1"))
+        self.assertEqual((t1["turns_ran"], t1["turns_fired"]), (0, 0))
 
 
 if __name__ == "__main__":

@@ -25,9 +25,10 @@ from pathlib import Path
 from typing import Any
 
 from .capture import _CREATE_GAME_MARKER, power_logs
-from .lessons import Lesson, match_lessons
+from .lessons import Lesson
+from .lexical import LessonIndex, retrieve_lessons, t1_candidates
 from .live import LiveGameTail
-from .raglog import lesson_id
+from .raglog import lesson_id, match_entry
 
 _TURN_RE = re.compile(r"TAG_CHANGE Entity=GameEntity tag=TURN value=(\d+)")
 
@@ -66,11 +67,16 @@ def iter_turn_buffers(lines: Iterator[str]) -> Iterator[tuple[int, int | None, l
         yield game_no, None, list(buffer)
 
 
-def replay_session(session_dir: Path, lessons: list[Lesson], resolver) -> list[dict[str, Any]]:
+def replay_session(session_dir: Path, lessons: list[Lesson], resolver, *,
+                   tiers: tuple[str, ...] = ("t0", "t1"),
+                   candidates: bool = False) -> list[dict[str, Any]]:
     """Replay every game in a session dir against the given store.
 
     Returns corpus/match/outcome events in the retrieval-log schema, tagged
-    "replay": true, ts-free and deterministic.
+    "replay": true, ts-free and deterministic. The lab runs both tiers by
+    default; tiers=("t0",) is the A/B baseline. candidates=True adds
+    unthresholded t1 scores per turn for threshold tuning (replay-only —
+    the live logger never writes them).
     """
     def all_lines() -> Iterator[str]:
         for path in power_logs(session_dir):  # Power_old.log first, then Power.log
@@ -81,6 +87,8 @@ def replay_session(session_dir: Path, lessons: list[Lesson], resolver) -> list[d
 
     session = session_dir.name
     tail = LiveGameTail(session_dir / "Power.log")  # path unused; we drive .lines
+    index = LessonIndex(lessons)  # one build per replay run
+    t1_on = "t1" in tiers
     events: list[dict[str, Any]] = []
     corpus_games: set[int] = set()
     seen_turns: set[tuple[int, int]] = set()
@@ -119,19 +127,21 @@ def replay_session(session_dir: Path, lessons: list[Lesson], resolver) -> list[d
         if key in seen_turns:
             continue
         seen_turns.add(key)
-        matched = match_lessons(snap, lessons)
+        results, tiers_ran = retrieve_lessons(snap, lessons, index=index,
+                                              t1_enabled=t1_on)
         opp = snap.get("opp") or {}
-        events.append({
+        event = {
             "ev": "match", "session": session, "game_no": game_no,
             "turn": snap.get("turn"), "raw_turn": snap.get("raw_turn"),
-            "tiers": ["t0"],
-            "matched": [{"id": lesson_id(rec.lesson), "tier": "t0",
-                         "conds": rec.trigger.condition_count()}
-                        for rec in matched],
+            "tiers": tiers_ran,
+            "matched": [match_entry(r) for r in results],
             "opp_class": opp.get("class"),
             "corpus_count": len(lessons),
             "replay": True,
-        })
+        }
+        if candidates and "t1" in tiers_ran:
+            event["t1_candidates"] = t1_candidates(snap, index)
+        events.append(event)
     return events
 
 
@@ -140,24 +150,25 @@ def replay_report(events: list[dict[str, Any]], store: list[Lesson],
     """Human-readable replay summary: per-game table + the same firing/dead
     sections rag-report computes, over the replayed events only."""
     from . import stats as stats_mod
-    from .raglog import dead_rows, fire_rows, join_games
+    from .raglog import dead_rows, fire_rows, join_games, tier_rows
 
     games = join_games(events)
     rows = []
     for (session, game_no), g in sorted(games.items()):
         if (session, game_no) == ("", -1):
             continue
-        fired = sorted(g["fired_ids"])
         rows.append({
             "game": game_no,
             "result": g["result"] or "(incomplete)",
             "opp_class": g["opp_class"],
             "your_turns": len(g["turn_events"]),
             "turns_matched": sum(1 for ids in g["turn_events"].values() if ids),
-            "fired": " ".join(fired) if fired else "",
+            "fired_t0": " ".join(sorted(g["tier_fired"].get("t0", set()))),
+            "fired_t1": " ".join(sorted(g["tier_fired"].get("t1", set()))),
         })
     for title, table in (
         ("Replayed games", rows),
+        ("Tier earnings (replayed)", tier_rows(games)),
         ("Per-lesson firing (replayed)", fire_rows(games, store)),
         ("Dead knowledge (replayed)", dead_rows(games, store)),
     ):

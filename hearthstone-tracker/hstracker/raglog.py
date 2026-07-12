@@ -42,6 +42,16 @@ def lesson_id(text: str) -> str:
     return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:12]
 
 
+def match_entry(result: dict[str, Any]) -> dict[str, Any]:
+    """One matched-lesson record for a match event; score only for fuzzy tiers."""
+    rec = result["lesson"]
+    entry = {"id": lesson_id(rec.lesson), "tier": result.get("tier", "t0"),
+             "conds": rec.trigger.condition_count()}
+    if result.get("score") is not None:
+        entry["score"] = round(float(result["score"]), 3)
+    return entry
+
+
 def append_event(event: dict[str, Any], path: Path | None = None) -> bool:
     """Append one JSON line; never raises — telemetry must not hurt the hot path.
 
@@ -96,8 +106,14 @@ class RagTurnLogger:
         self._first_seen: dict[int, float] = {}
 
     def on_snapshot(self, snap: dict[str, Any], matched: list, corpus: list, *,
-                    session: str, game_no: int) -> None:
+                    session: str, game_no: int,
+                    tiers_ran: list[str] | None = None) -> None:
+        """`matched` accepts bare Lessons (tier t0, back-compat) or annotated
+        dicts {lesson, tier, score} from lexical.retrieve_lessons."""
         try:
+            results = [m if isinstance(m, dict)
+                       else {"lesson": m, "tier": "t0", "score": None}
+                       for m in matched]
             self._first_seen.setdefault(game_no, time.time())
             if self._corpus_game != game_no:
                 self._corpus_game = game_no
@@ -117,8 +133,10 @@ class RagTurnLogger:
             if snap.get("whose_turn") != "me" or snap.get("phase") == "mulligan" \
                     or snap.get("game_over"):
                 return
-            ids = frozenset(lesson_id(rec.lesson) for rec in matched)
-            key = (game_no, snap.get("raw_turn"), ids)
+            # Tier in the key so a mid-turn t1->t0 transition (a draw
+            # satisfying a trigger) re-emits even for the same lesson id.
+            ids = frozenset((lesson_id(r["lesson"].lesson), r["tier"]) for r in results)
+            key = (game_no, snap.get("raw_turn"), ids, tuple(tiers_ran or ["t0"]))
             if key == self._last_key:
                 return
             self._last_key = key
@@ -126,10 +144,8 @@ class RagTurnLogger:
             append_event({
                 "ev": "match", "session": session, "game_no": game_no,
                 "turn": snap.get("turn"), "raw_turn": snap.get("raw_turn"),
-                "tiers": ["t0"],
-                "matched": [{"id": lesson_id(rec.lesson), "tier": "t0",
-                             "conds": rec.trigger.condition_count()}
-                            for rec in matched],
+                "tiers": list(tiers_ran or ["t0"]),
+                "matched": [match_entry(r) for r in results],
                 "opp_class": opp.get("class"),
                 "corpus_count": len(corpus),
             }, self.path)
@@ -176,6 +192,8 @@ def join_games(events: list[dict[str, Any]]) -> dict[tuple, dict[str, Any]]:
             "result": None, "deck": None, "opp_class": None, "turns": None,
             "outcome_ts": None, "corpus_ids": set(), "turn_events": {},
             "fired_ids": set(), "applied_ids": set(), "ingested_ids": set(),
+            "t1_ran_turns": set(), "t1_fired_turns": set(),
+            "tier_fired": {"t0": set(), "t1": set()},
         })
 
     for ev in events:
@@ -190,6 +208,12 @@ def join_games(events: list[dict[str, Any]]) -> dict[tuple, dict[str, Any]]:
             ids = {m.get("id") for m in (ev.get("matched") or [])}
             g["turn_events"].setdefault(ev.get("raw_turn"), set()).update(ids)
             g["fired_ids"] |= ids
+            for m in ev.get("matched") or []:
+                g["tier_fired"].setdefault(m.get("tier", "t0"), set()).add(m.get("id"))
+            if "t1" in (ev.get("tiers") or []):
+                g["t1_ran_turns"].add(ev.get("raw_turn"))
+                if any(m.get("tier") == "t1" for m in ev.get("matched") or []):
+                    g["t1_fired_turns"].add(ev.get("raw_turn"))
         else:
             g["result"] = ev.get("result")
             g["deck"] = ev.get("deck")
@@ -241,6 +265,29 @@ def summary_rows(games: dict[tuple, dict]) -> list[dict[str, Any]]:
         "ingests": sum(len(g["ingested_ids"]) for g in games.values()),
         "applied": sum(len(g["applied_ids"]) for g in games.values()),
     }]
+
+
+def tier_rows(games: dict[tuple, dict]) -> list[dict[str, Any]]:
+    """What each retrieval tier earns: turns it ran, turns it fired.
+
+    t0 runs on every your-turn; t1 only on t0 misses (Phase-1 logs correctly
+    show t1 ran 0 turns — it didn't exist).
+    """
+    real = _real_games(games)
+    all_turns = sum(len(g["turn_events"]) for g in real.values())
+    t0_fired = sum(1 for g in real.values() for t, ids in g["turn_events"].items()
+                   if ids and t not in g["t1_fired_turns"])
+    t1_ran = sum(len(g["t1_ran_turns"]) for g in real.values())
+    t1_fired = sum(len(g["t1_fired_turns"]) for g in real.values())
+    rows = [{"tier": "t0", "turns_ran": all_turns, "turns_fired": t0_fired,
+             "fire_rate_pct": round(100 * t0_fired / all_turns) if all_turns else 0,
+             "lessons_fired": len(set().union(*(g["tier_fired"].get("t0", set())
+                                                for g in real.values()) or [set()]))},
+            {"tier": "t1 (on t0 miss)", "turns_ran": t1_ran, "turns_fired": t1_fired,
+             "fire_rate_pct": round(100 * t1_fired / t1_ran) if t1_ran else 0,
+             "lessons_fired": len(set().union(*(g["tier_fired"].get("t1", set())
+                                                for g in real.values()) or [set()]))}]
+    return rows
 
 
 def fire_rows(games: dict[tuple, dict], store: list) -> list[dict[str, Any]]:

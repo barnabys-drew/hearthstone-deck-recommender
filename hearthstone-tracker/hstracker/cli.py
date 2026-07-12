@@ -146,7 +146,8 @@ def cmd_live(args) -> int:
         LiveGameTail, format_snapshot, write_snapshot_json,
         snapshot_delta, pending_discovers,
     )
-    from .lessons import StoreWatcher, match_lessons, mirror_store
+    from .lessons import StoreWatcher, mirror_store
+    from .lexical import retrieve_lessons, t1_live_enabled
     from .overlay import mirror_live_snapshot, resolve_overlay_dir
     from .raglog import RagTurnLogger, lesson_id
 
@@ -210,14 +211,18 @@ def cmd_live(args) -> int:
                 print("!! Error: game state stopped exporting — live view is stale", flush=True)
             if snap:
                 snap_failing = False
-                matched = match_lessons(snap, lesson_store.lessons())
-                if matched:
+                # Tier 1 (lexical fallback) is lab-gated: HS_RAG_T1=1 opts in.
+                results, tiers_ran = retrieve_lessons(
+                    snap, lesson_store.lessons(), t1_enabled=t1_live_enabled())
+                if results:
                     snap["lessons_matched"] = [
-                        {"lesson": rec.lesson, "cost": rec.cost, "id": lesson_id(rec.lesson)}
-                        for rec in matched
+                        {"lesson": r["lesson"].lesson, "cost": r["lesson"].cost,
+                         "id": lesson_id(r["lesson"].lesson), "tier": r["tier"]}
+                        for r in results
                     ]
-                rag.on_snapshot(snap, matched, lesson_store.lessons(),
-                                session=current_dir.name, game_no=tail.game_no)
+                rag.on_snapshot(snap, results, lesson_store.lessons(),
+                                session=current_dir.name, game_no=tail.game_no,
+                                tiers_ran=tiers_ran)
                 write_snapshot_json(snap, json_file)
                 if overlay_dir:
                     try:
@@ -381,6 +386,7 @@ def cmd_rag_report(args) -> int:
     precision, has_applied = raglog.precision_rows(games, store)
     sections = [
         ("Summary", raglog.summary_rows(games)),
+        ("Tier earnings", raglog.tier_rows(games)),
         ("Per-lesson firing", raglog.fire_rows(games, store)),
         ("Dead knowledge (never fired)", raglog.dead_rows(games, store)),
         ("Retrieval misses (misplay recorded, nothing fired)", raglog.miss_rows(games)),
@@ -413,7 +419,9 @@ def cmd_rag_replay(args) -> int:
 
     store = load_store()
     resolver = HeroClassResolver()
-    events = replay_session(session, store, resolver)
+    events = replay_session(session, store, resolver,
+                            tiers=("t0",) if args.tier0_only else ("t0", "t1"),
+                            candidates=args.candidates)
 
     if args.json:
         for ev in events:
@@ -473,6 +481,8 @@ def main(argv=None) -> int:
     p.add_argument("--logs-root", help="Hearthstone Logs directory (auto-detected by default)")
     p.add_argument("--json", action="store_true", help="Emit raw events as JSON lines (for diff-based regression tests)")
     p.add_argument("--log", help="Also append the replayed events to this JSONL file (never the live log)")
+    p.add_argument("--tier0-only", action="store_true", help="A/B baseline: skip the lexical tier")
+    p.add_argument("--candidates", action="store_true", help="Include unthresholded t1 candidate scores in events (threshold tuning)")
     p.set_defaults(func=cmd_rag_replay)
 
     args = parser.parse_args(argv)

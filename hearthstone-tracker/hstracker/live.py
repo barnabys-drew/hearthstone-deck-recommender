@@ -87,6 +87,30 @@ def snapshot_delta(prev: dict, curr: dict) -> str | None:
     my_board_gained = my_board_curr - my_board_prev
     my_board_lost = my_board_prev - my_board_curr
 
+    def board_stat_changes(prev_board: list, curr_board: list) -> list[str]:
+        """Stat lines for minions that stayed on board but changed atk/health.
+
+        Copies are matched by name; when the copy count differs the +/- lines
+        already tell the story, so those names are skipped.
+        """
+        prev_by_name: dict[str, list] = {}
+        curr_by_name: dict[str, list] = {}
+        for c in prev_board:
+            prev_by_name.setdefault(c["name"], []).append(c)
+        for c in curr_board:
+            curr_by_name.setdefault(c["name"], []).append(c)
+        changes = []
+        for name, prevs in prev_by_name.items():
+            currs = curr_by_name.get(name)
+            if not currs or len(currs) != len(prevs):
+                continue
+            p_stats = sorted((c.get("atk", 0), c.get("health", 0)) for c in prevs)
+            c_stats = sorted((c.get("atk", 0), c.get("health", 0)) for c in currs)
+            for (pa, ph), (ca, ch) in zip(p_stats, c_stats):
+                if (pa, ph) != (ca, ch):
+                    changes.append(f"{name} {pa}/{ph}→{ca}/{ch}")
+        return changes
+
     # Opponent side: check hand count + board names changed
     opp_hand_count_prev = opp_prev.get("hand_hidden", 0) + len(opp_prev.get("hand", []))
     opp_hand_count_curr = opp_curr.get("hand_hidden", 0) + len(opp_curr.get("hand", []))
@@ -113,6 +137,10 @@ def snapshot_delta(prev: dict, curr: dict) -> str | None:
             my_parts.append(f"board -{', '.join(sorted(my_board_lost.elements()))}")
         if my_parts:
             parts.append("my " + ", ".join(my_parts))
+
+    my_stat_changes = board_stat_changes(me_prev.get("board", []), me_curr.get("board", []))
+    if my_stat_changes:
+        parts.append("my board: " + ", ".join(my_stat_changes))
 
     # Friendly side: state changes (HP, armor, weapon, secrets)
     my_hp_prev = me_prev.get("hp")
@@ -158,6 +186,10 @@ def snapshot_delta(prev: dict, curr: dict) -> str | None:
             opp_parts.append(f"board -{', '.join(sorted(opp_board_lost.elements()))}")
         if opp_parts:
             parts.append("opp " + ", ".join(opp_parts))
+
+    opp_stat_changes = board_stat_changes(opp_prev.get("board", []), opp_curr.get("board", []))
+    if opp_stat_changes:
+        parts.append("opp board: " + ", ".join(opp_stat_changes))
 
     # Opponent side: state changes (HP, armor, weapon, secrets)
     opp_hp_prev = opp_prev.get("hp")
@@ -431,13 +463,26 @@ def snapshot_from_tree(
             left.sort(key=lambda c: (c["cost"] if c["cost"] is not None else 99, c["name"]))
             snapshot[side]["deck_cards_left"] = left
 
+            # Full original decklist with drawn-status, for HDT-style display:
+            # every card keeps its row; `left` hits 0 when all copies are drawn.
+            full = []
+            for card_id, count in deck_counts.items():
+                card = resolver.card(card_id)
+                full.append({"name": card.get("name", card_id),
+                             "id": card_id,
+                             "cost": card.get("cost"),
+                             "count": count,
+                             "left": max(0, count - seen_from_deck.get(card_id, 0))})
+            full.sort(key=lambda c: (c["cost"] if c["cost"] is not None else 99, c["name"]))
+            snapshot[side]["deck_full"] = full
+
             # Extra cards beyond the decklist (shuffled/generated/created)
             extra = []
             for card_id in total_seen:
                 if total_seen[card_id] > deck_counts.get(card_id, 0):
                     card = resolver.card(card_id)
                     count = total_seen[card_id] - deck_counts.get(card_id, 0)
-                    extra.append({"name": card.get("name", card_id),
+                    extra.append({"name": card.get("name", card_id), "id": card_id,
                                   "cost": card.get("cost"), "count": count,
                                   "type": card.get("type"), "text": card_text(card)})
             if extra:
@@ -450,6 +495,7 @@ def snapshot_from_tree(
     try:
         played = [
             {"name": resolver.name(row["card_id"]) or row["card_id"],
+             "id": row["card_id"],
              "count": row["played"], "turn": row["first_played_turn"]}
             for row in extract_card_events(tree, friendly_id)
             if not row["friendly"] and row["played"]
@@ -581,6 +627,22 @@ def format_snapshot(snap: dict[str, Any]) -> str:
     if opp["secrets"]:
         opp_extra += f", secrets: {opp['secrets']}"
     lines.append(f"   opp board: {_card_line(opp['board'])}{opp_weapon}{opp_extra}")
+    if snap.get("whose_turn") == "me":
+        # Inline rules text so the coach can advise straight from the marker
+        # without a live.json read costing seconds of the turn timer.
+        seen: set[str] = set()
+        texts = []
+        for c in list(me["hand"]) + list(me["board"]) + list(opp["board"]):
+            name, text = c.get("name"), " ".join((c.get("text") or "").split())
+            if not name or not text or name in seen:
+                continue
+            seen.add(name)
+            if len(text) > 150:
+                text = text[:149] + "…"
+            texts.append(f"     {name}: {text}")
+        if texts:
+            lines.append("   card text (hand + boards):")
+            lines.extend(texts)
     deck_left = me.get("deck_cards_left")
     if deck_left:
         counts = ", ".join(

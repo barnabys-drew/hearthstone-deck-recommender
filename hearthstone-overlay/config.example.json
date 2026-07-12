@@ -1,0 +1,47 @@
+{
+  "overlayDir": "C:/Users/drewt/hs-overlay",
+  "opacity": 0.94,
+  "pollMs": 250,
+  "staleAdviceSeconds": 75,
+  "windows": {
+    "advice": {
+      "x": 48,
+      "y": 96,
+      "width": 430,
+      "height": 560,
+      "visible": true
+    },
+    "deck": {
+      "x": 490,
+      "y": 96,
+      "width": 260,
+      "height": 700,
+      "visible": true
+    },
+    "opponent": {
+      "x": 762,
+      "y": 96,
+      "width": 260,
+      "height": 480,
+      "visible": true
+    },
+    "lessons": {
+      "x": 48,
+      "y": 668,
+      "width": 430,
+      "height": 220,
+      "visible": true
+    }
+  },
+  "hotkeys": {
+    "toggleClickThrough": "CommandOrControl+Shift+F",
+    "toggleVisible": "CommandOrControl+Shift+9",
+    "opacityDown": "CommandOrControl+Shift+-",
+    "opacityUp": "CommandOrControl+Shift+=",
+    "resetBounds": "CommandOrControl+Shift+0",
+    "toggleAdvice": "CommandOrControl+Shift+1",
+    "toggleDeck": "CommandOrControl+Shift+2",
+    "toggleOpponent": "CommandOrControl+Shift+3",
+    "toggleLessons": "CommandOrControl+Shift+4"
+  }
+}

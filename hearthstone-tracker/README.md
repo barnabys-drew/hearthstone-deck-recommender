@@ -110,6 +110,11 @@ later addition).
 The intended workflow with an AI CLI: run `hst live` in the background, watch
 its stdout for lines starting with `== ` (mulligan, each turn, game over),
 and on each of your turns have the agent read `live.json` and suggest a play.
+`hst live` also mirrors the latest snapshot to a Windows overlay folder
+(default: `/mnt/c/Users/drewt/hs-overlay`, override with `--overlay-dir` or
+`HS_OVERLAY_DIR`) so the native `../hearthstone-overlay` app can render a
+Discord-style tracker rail. The AI coach can publish its numbered plan to the
+same folder with `./coach_publish.py`, which writes `advice.json` atomically.
 The [`hearthstone-live-coach`](../hearthstone-live-coach/SKILL.md) skill packages
 this workflow as a model-agnostic playbook (setup, per-turn checklist, output
 format, known traps) so coaching quality doesn't depend on which model runs it.

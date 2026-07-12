@@ -73,7 +73,10 @@ same mistake doesn't repeat game after game.
      three names, user had to ask "which one?").
    - `^== UPDATE` fires when the game state changes mid-turn: cards appearing in hand/board
      (discovered, summoned, etc.), or state swings (HP/armor damage, hero attack gained,
-     secrets triggering, weapons). Always arrives within one poll interval (~1s default).
+     secrets triggering, weapons). During YOUR turn it also reports minion stat changes
+     (`opp board: The Black Knight 4/4→4/2`) so spell results can be verified without
+     re-deriving the board — trust these over turn-start numbers. Always arrives within
+     one poll interval (~1s default).
      HP and armor deltas are labeled (`opp hp 22→19`, `opp armor 3→0`) — read the label,
      they are different resources. An armor line hitting 0 is NOT a kill.
    - `^== EXTRA TURN` fires when the same side's turn repeats (an extra-turn effect) instead
@@ -94,16 +97,68 @@ same mistake doesn't repeat game after game.
    override) adds card rules text and flags; read it only when you need those.
    When you do read it, always re-read fresh — it is rewritten continuously.
 
+## Optional native overlay publishing
+
+If the Hearthstone Coach Overlay is running, publish the same advice you send
+to chat as structured JSON immediately after composing it. This is optional and
+non-blocking: if the publish command fails, still send the chat advice on time.
+
+Use `../hearthstone-tracker/coach_publish.py` (or the absolute repo path) and
+keep the payload short enough to scan while playing:
+
+```bash
+<repo>/hearthstone-tracker/coach_publish.py --json '{
+  "kind": "turn",
+  "turn": 5,
+  "headline": "Stabilize the board",
+  "why": "They have 11 incoming and no taunt; remove the largest threat first.",
+  "steps": ["Trade 3/2 into their 5/3", "Hero Power face", "Pass"],
+  "warning": "Do not send minions face before clearing the 5/3."
+}'
+```
+
+Payload mapping:
+- normal turn: `kind=turn`, one short `headline`, the why paragraph in `why`,
+  numbered moves in `steps`, and any bold caution in `warning`.
+- lethal turn: `kind=lethal`, include `lethal: {"is_lethal": true, "math":
+  "5+5+2 = 12 ≥ 12"}` and still list the execution order in `steps`.
+- mulligan: `kind=mulligan`, `mulligan: [{"card":"...","keep":true|false,
+  "reason":"..."}]`.
+- game over: `kind=gameover`, `game_over=WON|LOST|TIED`, and the post-mortem in
+  `why`.
+
+Two more publish forms:
+- **Discover picks** (mid-turn): `coach_publish.py --discover "Pick X — reason"`
+  used ALONE merges the pick into the advice card already on screen without
+  clobbering the turn plan. The next full turn publish clears it.
+- **Lessons**: add `--lesson "..."` (repeatable) to any publish — typically the
+  mulligan, with the 1-3 lessons relevant to the matchup. Lessons accumulate in
+  `lessons.json` across games (deduped) and feed the standalone lessons panel.
+
+Publish order under time pressure: chat advice FIRST, overlay publish second
+(or in the same tool batch). The overlay is a display, never the blocker.
+
+At the start of a new coaching session, clear the overlay once:
+
+```bash
+<repo>/hearthstone-tracker/coach_publish.py --clear
+```
+
+The overlay reads `advice.json`/`lessons.json` beside the mirrored `live.json`
+(default WSL folder `/mnt/c/Users/drewt/hs-overlay`, override with
+`HS_OVERLAY_DIR` or `--overlay-dir`).
+
 ## Response deadline: 15 seconds
 
 The user is on the game's turn timer. Advice must land **within ~15 seconds of
 the turn marker**, or the user starts playing without you and the whole loop is
 decorative. In practice:
 
-- **Advise straight from the marker block.** It carries hand, boards, and deck
-  outs. Reading live.json costs a tool round-trip — spend it only when the
-  block is missing something you actually need (rules text of an unfamiliar
-  card, flags, exact mana). One read maximum; never re-read mid-composition.
+- **Advise straight from the marker block.** Your-turn markers inline the
+  rules text of every card in your hand and on both boards (`card text` lines),
+  plus hand, boards, and deck outs — there is almost never a reason to read
+  live.json mid-turn anymore. Spend a read only on something the block truly
+  lacks; one read maximum, never re-read mid-composition.
 - **If you must read, read once and commit.** No second look, no verifying a
   hunch. An 80%-confident answer now beats a 95% answer after the user has
   already moved.

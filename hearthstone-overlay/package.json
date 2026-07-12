@@ -1,0 +1,13 @@
+{
+  "name": "hearthstone-coach-overlay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Always-on-top Discord-style overlay for Hearthstone live coach advice.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}

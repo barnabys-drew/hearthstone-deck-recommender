@@ -111,12 +111,16 @@ def cmd_live(args) -> int:
         LiveGameTail, format_snapshot, write_snapshot_json,
         snapshot_delta, pending_discovers,
     )
+    from .overlay import mirror_live_snapshot, resolve_overlay_dir
 
     log_root = find_log_root(args.logs_root)
     json_file = Path(args.json_file) if args.json_file else DEFAULT_DB.parent / "live.json"
+    overlay_dir = resolve_overlay_dir(args.overlay_dir)
     resolver = HeroClassResolver()
 
     print(f"Live game state (json: {json_file}). Ctrl-C to stop.", flush=True)
+    if overlay_dir:
+        print(f"Overlay mirror: {overlay_dir}", flush=True)
     tail: LiveGameTail | None = None
     current_dir = None
     last_marker = None  # (path, raw_turn, phase, game_over) last printed
@@ -155,6 +159,11 @@ def cmd_live(args) -> int:
             if snap:
                 snap_failing = False
                 write_snapshot_json(snap, json_file)
+                if overlay_dir:
+                    try:
+                        mirror_live_snapshot(snap, overlay_dir)
+                    except OSError as exc:
+                        print(f"!! Overlay mirror failed: {exc}", flush=True)
                 marker = (str(tail.path), snap["raw_turn"], snap.get("phase"), snap.get("game_over"))
 
                 # Tier 2: Check for pending unresolved Discovers (best-effort)
@@ -310,6 +319,7 @@ def main(argv=None) -> int:
     p.add_argument("--logs-root", help="Hearthstone Logs directory (auto-detected by default)")
     p.add_argument("--interval", type=float, default=1.0, help="Poll interval in seconds")
     p.add_argument("--json-file", help="Where to write the latest snapshot JSON (default: next to the DB)")
+    p.add_argument("--overlay-dir", help="Mirror live.json for the Windows overlay (default: HS_OVERLAY_DIR or Windows user hs-overlay)")
     p.add_argument("--once", action="store_true", help="Print one snapshot and exit")
     p.set_defaults(func=cmd_live)
 

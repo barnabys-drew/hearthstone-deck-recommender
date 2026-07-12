@@ -2,6 +2,7 @@ const { app, BrowserWindow, globalShortcut, ipcMain, net } = require('electron')
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { mergeConfig } = require('./renderer/logic.js');
 
 const appDir = __dirname;
 const configPath = path.join(appDir, 'config.json');
@@ -51,21 +52,14 @@ function armMoveModeTimer() {
 }
 
 function loadConfig() {
-  let cfg = { ...defaults };
   try {
     if (fs.existsSync(configPath)) {
-      const saved = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      cfg = { ...defaults, ...saved };
-      cfg.windows = { ...defaults.windows };
-      for (const name of PANELS) {
-        cfg.windows[name] = { ...defaults.windows[name], ...((saved.windows || {})[name] || {}) };
-      }
-      cfg.hotkeys = { ...defaults.hotkeys, ...(saved.hotkeys || {}) };
+      return mergeConfig(defaults, JSON.parse(fs.readFileSync(configPath, 'utf8')), PANELS);
     }
   } catch (error) {
     console.error('Could not read config.json:', error);
   }
-  return cfg;
+  return mergeConfig(defaults, null, PANELS);
 }
 
 let saveTimer = null;

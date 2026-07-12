@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+const { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale } = window.OverlayLogic;
 
 // Which panel this window shows: advice | deck | opponent | lessons | all (browser mode).
 const panel = new URLSearchParams(location.search).get('panel') || 'all';
@@ -31,30 +32,14 @@ function resolveArt(id) {
   return artCache.get(id);
 }
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
 function setHidden(node, hidden) { node.classList.toggle('hidden', hidden); }
 
-function artStyle(card) {
-  if (!card.id || !/^[A-Za-z0-9_.-]+$/.test(String(card.id))) return '';
-  return ` style="background-image: linear-gradient(90deg, rgba(24,25,30,.96) 38%, rgba(24,25,30,.55) 70%, rgba(24,25,30,.25)), url('${resolveArt(card.id)}')"`;
-}
-
 function cardRow(card, { left = null, remaining = 0 } = {}) {
-  const copies = Number(left ?? card.count ?? 1);
-  const gone = copies === 0;
   const key = `${card.name}|${card.cost}`;
-  const prev = deckSeen.get(key);
-  const flash = prev !== undefined && prev !== copies;
+  const artUrl = card.id && isValidCardId(card.id) ? resolveArt(card.id) : null;
+  const { html, copies } = cardRowHtml(card, { left, remaining, prevLeft: deckSeen.get(key), artUrl });
   deckSeen.set(key, copies);
-  const odds = !gone && remaining ? `${Math.round((copies / remaining) * 100)}%` : '';
-  return `<div class="deck-card art${gone ? ' gone' : ''}${flash ? ' flash' : ''}"${artStyle(card)}>`
-    + `<span class="cost">${escapeHtml(card.cost ?? '?')}</span>`
-    + `<span class="deck-name">${escapeHtml(card.name)}</span>`
-    + `${copies > 1 ? `<span class="copies">×${copies}</span>` : ''}`
-    + `<span class="odds">${odds}</span></div>`;
+  return html;
 }
 
 function renderDeck() {
@@ -110,11 +95,7 @@ function renderAdvice() {
   $('warning').textContent = current.warning || '';
   setHidden($('warning'), !current.warning);
 
-  // idle/gameover cards sit on screen indefinitely by design — never stale.
-  const restingKind = kind === 'idle' || kind === 'gameover';
-  const adviceAge = current.ts ? (Date.now() / 1000) - Number(current.ts) : Infinity;
-  const wrongTurn = live?.turn && current.turn != null && Number(current.turn) !== Number(live.turn);
-  setHidden($('stale'), restingKind || !(wrongTurn || adviceAge > Number(config.staleAdviceSeconds || 75)));
+  setHidden($('stale'), !isAdviceStale(current, live?.turn, config.staleAdviceSeconds, Date.now() / 1000));
 }
 
 function renderLessons() {

@@ -111,7 +111,7 @@ def cmd_live(args) -> int:
         LiveGameTail, format_snapshot, write_snapshot_json,
         snapshot_delta, pending_discovers,
     )
-    from .lessons import StoreWatcher, match_lessons
+    from .lessons import StoreWatcher, match_lessons, mirror_store
     from .overlay import mirror_live_snapshot, resolve_overlay_dir
 
     log_root = find_log_root(args.logs_root)
@@ -119,6 +119,7 @@ def cmd_live(args) -> int:
     overlay_dir = resolve_overlay_dir(args.overlay_dir)
     resolver = HeroClassResolver()
     lesson_store = StoreWatcher()  # mtime-cached; new lessons picked up mid-game
+    mirror_store()  # give the overlay lessons panel the structured store at startup
 
     print(f"Live game state (json: {json_file}). Ctrl-C to stop.", flush=True)
     if overlay_dir:

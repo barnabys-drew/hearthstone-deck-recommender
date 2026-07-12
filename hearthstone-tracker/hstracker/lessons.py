@@ -63,6 +63,7 @@ class Lesson(BaseModel):
     lesson: str
     trigger: LessonTrigger = Field(default_factory=LessonTrigger)
     cost: str | None = None  # what the mistake cost, e.g. "7 face damage"
+    deck: str | None = None  # which of MY decks this is about; None = general principle
     matchup: str | None = None  # freeform context, e.g. "Aya Rogue vs Warrior"
     date: str | None = None  # ISO date of the game it came from
     source: str = "coach"  # coach | post-game | user
@@ -101,7 +102,24 @@ def append_lesson(lesson: Lesson | dict[str, Any], path: Path | None = None) -> 
     tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(payload, indent=1), encoding="utf-8")
     os.replace(tmp, path)
+    mirror_store(path)
     return path
+
+
+def mirror_store(path: Path | None = None) -> Path | None:
+    """Copy the structured store into the overlay folder so the lessons panel
+    can group by deck. Best-effort: the store is authoritative, the mirror is
+    display-only."""
+    from .overlay import atomic_write_json, resolve_overlay_dir
+    path = path or STORE_PATH
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    try:
+        return atomic_write_json(resolve_overlay_dir() / "lesson_store.json", raw)
+    except OSError:
+        return None
 
 
 def _names(cards: list[dict[str, Any]]) -> set[str]:

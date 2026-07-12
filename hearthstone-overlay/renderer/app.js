@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale } = window.OverlayLogic;
+const { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, groupLessons } = window.OverlayLogic;
 
 // Which panel this window shows: advice | deck | opponent | lessons | all (browser mode).
 const panel = new URLSearchParams(location.search).get('panel') || 'all';
@@ -9,6 +9,7 @@ let mtimes = new Map();
 let live = null;
 let advice = null;
 let lessonsDoc = null;
+let lessonStore = null;
 let deckSeen = new Map(); // card key -> last seen copies-left, to flash changed rows
 
 // Card art: resolved through the host (Electron disk cache / serve.py cache),
@@ -99,16 +100,22 @@ function renderAdvice() {
 }
 
 function renderLessons() {
-  // Live trigger matches first (relevant to the CURRENT board), then the
-  // session/persistent lists.
+  // Live trigger matches first (relevant to the CURRENT board), then general
+  // principles, then a few points per deck from the structured store.
   const matched = (live?.lessons_matched || []).map((m) => m.cost ? `${m.lesson} — cost last time: ${m.cost}` : m.lesson);
-  const fromFile = lessonsDoc?.lessons || [];
-  const fromAdvice = advice?.lessons || [];
-  const merged = [...new Set([...fromAdvice, ...fromFile])];
-  $('lessons').innerHTML = matched.length || merged.length
-    ? matched.map((l) => `<div class="lesson matched">${escapeHtml(l)}</div>`).join('')
-      + merged.map((l) => `<div class="lesson">${escapeHtml(l)}</div>`).join('')
-    : '<div class="empty">No lessons recorded yet.</div>';
+  const grouped = groupLessons(lessonStore?.lessons || []);
+  const row = (rec) => `<div class="lesson">${escapeHtml(rec.lesson)}</div>`;
+  const sections = [];
+  if (matched.length) {
+    sections.push(matched.map((l) => `<div class="lesson matched">${escapeHtml(l)}</div>`).join(''));
+  }
+  if (grouped.general.length) {
+    sections.push(`<div class="lessons-title">General</div>` + grouped.general.map(row).join(''));
+  }
+  for (const { deck, items } of grouped.decks) {
+    sections.push(`<div class="lessons-title">${escapeHtml(deck)}</div>` + items.map(row).join(''));
+  }
+  $('lessons').innerHTML = sections.length ? sections.join('') : '<div class="empty">No lessons recorded yet.</div>';
 }
 
 function render() {
@@ -128,6 +135,7 @@ async function pollFile(fileName) {
       if (fileName === 'live.json') live = result.data;
       if (fileName === 'advice.json') advice = result.data;
       if (fileName === 'lessons.json') lessonsDoc = result.data;
+      if (fileName === 'lesson_store.json') lessonStore = result.data;
       return true;
     }
   } catch (_error) {
@@ -141,8 +149,8 @@ const FILES_BY_PANEL = {
   advice: ['advice.json', 'live.json'],
   deck: ['live.json'],
   opponent: ['live.json'],
-  lessons: ['lessons.json', 'advice.json', 'live.json'],
-  all: ['live.json', 'advice.json', 'lessons.json'],
+  lessons: ['lesson_store.json', 'live.json'],
+  all: ['live.json', 'advice.json', 'lessons.json', 'lesson_store.json'],
 };
 
 async function tick() {

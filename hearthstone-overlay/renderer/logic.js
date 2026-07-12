@@ -47,6 +47,27 @@
     return wrongTurn || age > Number(staleSeconds || 75);
   }
 
+  // Lessons panel structure: general principles first (no deck), then a few
+  // points per deck, newest first, capped so the panel stays scannable.
+  function groupLessons(records, { perGroup = 4 } = {}) {
+    const general = [];
+    const byDeck = new Map();
+    for (const rec of records || []) {
+      if (!rec || !rec.lesson) continue;
+      const deck = (rec.deck || '').trim();
+      if (!deck) {
+        general.push(rec);
+      } else {
+        if (!byDeck.has(deck)) byDeck.set(deck, []);
+        byDeck.get(deck).push(rec);
+      }
+    }
+    return {
+      general: general.slice(0, perGroup),
+      decks: [...byDeck.entries()].map(([deck, items]) => ({ deck, items: items.slice(0, perGroup) })),
+    };
+  }
+
   // Deep-merge saved config over defaults, per-panel and per-hotkey, so a
   // partial config.json never loses fields added in newer versions.
   function mergeConfig(defaults, saved, panels) {
@@ -59,5 +80,5 @@
     return cfg;
   }
 
-  return { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, mergeConfig };
+  return { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, mergeConfig, groupLessons };
 });

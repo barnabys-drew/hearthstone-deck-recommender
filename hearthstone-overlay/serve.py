@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "hearthstone-tra
 from hstracker.overlay import resolve_overlay_dir  # noqa: E402
 
 RENDERER_DIR = Path(__file__).resolve().parent / "renderer"
-DATA_FILES = {"live.json", "advice.json", "lessons.json"}
+DATA_FILES = {"live.json", "advice.json", "lessons.json", "lesson_store.json"}
 MIME = {".html": "text/html", ".js": "text/javascript", ".css": "text/css"}
 ART_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 ART_REMOTE = "https://art.hearthstonejson.com/v1/tiles/{card_id}.png"

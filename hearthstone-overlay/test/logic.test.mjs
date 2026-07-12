@@ -3,7 +3,29 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, mergeConfig } = require('../renderer/logic.js');
+const { escapeHtml, isValidCardId, cardRowHtml, isAdviceStale, mergeConfig, groupLessons } = require('../renderer/logic.js');
+
+test('groupLessons: general first, then per-deck groups, capped', () => {
+  const records = [
+    { lesson: 'g1' },
+    { lesson: 'a1', deck: 'Aya Rogue' },
+    { lesson: 'g2', deck: '  ' },
+    { lesson: 'a2', deck: 'Aya Rogue' },
+    { lesson: 'b1', deck: 'Burn Warrior' },
+    { lesson: 'a3', deck: 'Aya Rogue' },
+    { lesson: 'a4', deck: 'Aya Rogue' },
+    { lesson: 'a5', deck: 'Aya Rogue' },
+    null,
+    { deck: 'no-lesson-field' },
+  ];
+  const g = groupLessons(records, { perGroup: 4 });
+  assert.deepEqual(g.general.map((r) => r.lesson), ['g1', 'g2']);
+  assert.equal(g.decks.length, 2);
+  assert.equal(g.decks[0].deck, 'Aya Rogue');
+  assert.deepEqual(g.decks[0].items.map((r) => r.lesson), ['a1', 'a2', 'a3', 'a4'], 'capped at 4');
+  assert.deepEqual(g.decks[1].items.map((r) => r.lesson), ['b1']);
+  assert.deepEqual(groupLessons(null), { general: [], decks: [] });
+});
 
 test('escapeHtml escapes all five HTML-significant characters', () => {
   assert.equal(escapeHtml(`<img src=x onerror="a&b('c')">`),

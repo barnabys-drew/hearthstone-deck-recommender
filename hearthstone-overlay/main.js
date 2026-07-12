@@ -10,7 +10,7 @@ const configPath = path.join(appDir, 'config.json');
 // Four standalone always-on-top panels; each has its own saved bounds and
 // visibility, and every one is draggable + resizable on all four edges.
 const PANELS = ['advice', 'deck', 'opponent', 'lessons'];
-const DATA_FILES = ['live.json', 'advice.json', 'lessons.json'];
+const DATA_FILES = ['live.json', 'advice.json', 'lessons.json', 'lesson_store.json'];
 
 const defaults = {
   overlayDir: process.env.HS_OVERLAY_DIR_WIN || path.join(os.homedir(), 'hs-overlay'),

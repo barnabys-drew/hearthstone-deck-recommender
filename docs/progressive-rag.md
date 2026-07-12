@@ -100,20 +100,47 @@ SOC transfer: exact IOC match → keyword/sigma-style match → semantic search,
 escalating only on miss, with evidence labeled by retrieval confidence so the
 triage agent discounts fuzzier priors.
 
-## Phase 3 — Embedding tier (deferred until data justifies)
+## Phase 3 — Embedding tier 🧪 LAB-BUILT (2026-07-12), live-gated
 
 **Entry gate:** the Phase-1 report shows misses that Tier 0+1 *cannot* cover
 — lessons whose relevance is semantic, not lexical ("don't overextend into
 AoE" with no shared card name). If that bucket stays empty, this phase never
 gets built. That is itself the lesson: eval-driven adoption.
+*Gate not yet satisfied (miss bucket empty — no misplays recorded in the
+telemetry games so far), so Tier 2 shipped as lab code on the Phase-2
+precedent: rag-replay runs it only with `--t2` (keeps existing regression
+diffs byte-stable); the live loop runs it only with `HS_RAG_T2=1`.*
 
-Build (when gated in):
+Built (`hstracker/embed.py`, backend decision: **local fastembed/MiniLM** —
+no second API key, keeps the no-API property; volume is nowhere near where
+API pennies would teach anything):
 - Embeddings computed at **write time** — each lesson embedded once when
-  recorded — plus once per game (mulligan context), never per turn.
-- Tier 2 runs only on Tier 0+1 miss: cosine top-k over the cached vectors.
-- Local model (fastembed/ONNX MiniLM; zero per-call cost, keeps the repo's
-  no-API property) vs API embeddings (pennies, teaches key/cost management)
-  decided at build time with Phase-1 evidence in hand.
+  recorded (`append_lesson` hook, active only after `hst rag-embed`
+  initializes the cache) — plus once per game (mulligan context), never per
+  turn. The per-turn hot path is pure-python dot products over ≤200 cached
+  unit vectors: no model, no numpy, no I/O, and fastembed itself is an
+  optional dependency the read path never imports.
+- Tier 2 runs only on Tier 0+1 miss: cosine top-k over the cached vectors,
+  gated by `SIM_THRESHOLD` (0.48, `HS_RAG_T2_MIN` override), marker label
+  `[T2 semantic]`, hits ackable with `--applied-lesson` like every tier.
+- `hst rag-embed` builds/refreshes/prunes the cache (`--status` for
+  coverage); a model-name mismatch invalidates every vector.
+- Telemetry: t2 rows in `rag-report`/`rag-replay` tier earnings;
+  `rag-replay --t2 --candidates` emits unthresholded sims for tuning.
+- Threshold tuned on `Hearthstone_2026_07_12_15_31_05` (5 games, 9
+  t0+t1-miss turns): plausible fires at 0.517–0.554, noise ceiling 0.446 →
+  0.48 sits in the gap. First eyeball: the two ≥0.48 fires (Coin discipline
+  + weapon charges, in a Coin-Rogue vs DK game) look relevant; small basis.
+- A/B verified: `--t2` replay is purely additive over the default replay
+  (t0/t1 events byte-identical after stripping t2 fields).
+
+**Acceptance evidence required to flip the live default ON** (mirrors
+Phase 2's bar, all three):
+1. ≥20 real telemetry games whose misses are *semantic* — misplays recorded
+   where replay shows t0+t1 silent but t2 firing the relevant lesson.
+2. Replay over ≥2 sessions with every t2 fire eyeballed (~70%+ relevant).
+3. The additive A/B property re-verified on those sessions.
+If the evidence never materializes, t2 stays lab-only — also a valid outcome.
 
 Teaches: write-time vs read-time cost asymmetry, embedding caching,
 escalation economics — semantics only pays for the misses.
@@ -184,6 +211,49 @@ quality from reasoning quality, A/B testing LLM output.
 SOC transfer: a triage agent's dispositions are measured by analyst adoption
 (did they use it?) and outcomes (was it right?). Coach quality is analogous:
 measure adoption and win correlation before investing in prompt tuning.
+
+## Phase 7 — Continuous verification suite (planned 2026-07-12)
+
+**Entry gate:** more than one phase is live-gated or flipped on. At that
+point "did I break an earlier tier?" stops being answerable by unit tests
+alone — the stack needs tools that test all six parts against the *running*
+system, on real data, repeatedly.
+
+The distinction from the existing tests: `tests/` proves the code is right
+once, at commit time; Phase 7 proves the *deployment* is still right while
+it runs — the feed exporting, the tiers firing at their historical rates,
+the caches fresh, the telemetry joining.
+
+Build (when gated in):
+- `hst selftest` — one command that exercises every layer end-to-end and
+  prints PASS/FAIL per phase: synthetic snapshot → t0 trigger fires (P0);
+  telemetry event lands and joins (P1); t0-miss snapshot → t1 scores (P2);
+  cache coverage + a known-similar pair scores above threshold (P3);
+  store hygiene stats within bounds (P4); context stays under budget (P5);
+  advice ids join to ratings (P6). Runs against real stores/caches,
+  read-only, and never writes the live telemetry log (replay's rule).
+- **Drift alarms on the telemetry itself:** rag-report grows a `--check`
+  mode with exit codes — match-rate collapse (t0 rate drops >X% vs its
+  trailing window), dead-cache detection (lessons added but embeddings
+  stale), tier silence (a tier that historically fired going quiet for N
+  games), join-rate decay (applied/ingest events landing unjoined).
+- **Golden-session regression:** pin 2-3 replayed sessions' `--json` output
+  as fixtures; `hst selftest` diffs current replay against them so a
+  retrieval change that alters history is caught before it ships (the
+  additive A/B check from Phases 2/3, made permanent).
+- **Live-loop watchdog surface:** the feed already prints `!!` on stale
+  exports; extend to a machine-readable health line (last snapshot age,
+  tiers enabled, store/cache mtimes, model name) the overlay can display —
+  which also satisfies the "make the model in use visible" constraint.
+
+Teaches: ops-grade verification of an ML-ish pipeline — the difference
+between tested code and a tested *system*, canaries, drift detection,
+golden-file regression.
+
+SOC transfer: this is the monitoring stack every production triage agent
+needs — retrieval health dashboards, drift alarms when dispositions stop
+firing, canary alerts replayed nightly against the KB, and an auditable
+"what config/model was live when this alert was triaged" trail.
 
 ## Standing constraints (apply to every phase)
 

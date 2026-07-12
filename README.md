@@ -23,6 +23,21 @@ you'd actually have to spend, and hands you a ready-to-import deck code.
 ![Dependencies: standard library only](https://img.shields.io/badge/dependencies-standard%20library%20only-brightgreen)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+## Screenshots
+
+| Deck tracker + deck stats | Coach, lessons & opponent tracker |
+|---------------------------|-----------------------------------|
+| ![Deck tracker and stats panels](docs/screenshots/deck-tracker-stats.png) | ![Coach, lessons and opponent panels](docs/screenshots/coach-lessons-opponent.png) |
+
+Left: the HDT-style deck tracker mid-game — original list with draw
+percentages, plus every generated/shuffled card the tracker picked up from
+the log — and the per-deck stats panel with matchup win rates. Right: the
+coach's advice card (idle here — panels keep tracking even with no AI
+attached), the accumulating lessons panel with the cross-game headline
+lesson, and the opponent tracker showing every card they've played or
+revealed. The opponent's hand is only ever the hidden-card count the game
+client itself exposes.
+
 ## Two ways to use it
 
 Both are first-class; pick per situation.

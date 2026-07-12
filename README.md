@@ -72,6 +72,13 @@ Also in this repo:
   win-rate delta vs. the deck's baseline, flags dead draws, and pairs with the
   deck recommender's substitute-suggestion logic to propose replacements.
 
+> **Model-agnostic:** nothing in this repo calls an LLM API or depends on a
+> specific model. The coach is whatever AI CLI you already use — Claude Code,
+> Codex, Cursor, Gemini CLI, or a plain chat window — following the same
+> SKILL.md playbook over the same feed. See
+> [docs/coach-with-any-model.md](docs/coach-with-any-model.md) for per-agent
+> setup.
+
 > **Status:** Useful working prototype. Public-card/deck data changes often, so agents should still browse current top-deck sources before recommending a deck.
 
 ---

@@ -11,7 +11,9 @@ visible game state each turn; you read that state and advise. Everything here is
 legal-information coaching: the log only contains what the player's client is
 allowed to see (the opponent's hand appears only as a hidden-card count).
 
-This skill is deliberately procedural. Follow it exactly even if you believe you
+This skill is deliberately procedural and model-agnostic: any AI agent that
+can run shell commands and follow this playbook can coach (see
+`docs/coach-with-any-model.md`). Follow it exactly even if you believe you
 know the game well — several of the rules below exist because a capable model
 got them wrong in live play.
 

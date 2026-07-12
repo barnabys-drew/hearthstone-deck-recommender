@@ -107,6 +107,7 @@ h2 { margin: 0 0 5px; display: flex; justify-content: space-between; }
 .odds { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 9px; min-width: 24px; text-align: right; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
 .lessons-list { display: grid; gap: 4px; }
 .lesson { color: var(--muted); font-size: 11px; line-height: 1.35; padding: 6px 9px; border-radius: 8px; background: rgba(240,178,50,.08); border-left: 3px solid rgba(240,178,50,.5); }
+.lesson.matched { background: rgba(242,63,66,.12); border-left-color: rgba(242,63,66,.65); color: #ffd9da; font-weight: 700; }
 .empty { color: var(--faint); font-size: 11px; }
 footer { margin-top: auto; display: flex; justify-content: space-between; gap: 8px; color: var(--faint); font-size: 9px; border-top: 1px solid rgba(255,255,255,.06); padding-top: 6px; }
 .hidden { display: none !important; }

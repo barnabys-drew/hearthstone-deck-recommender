@@ -111,12 +111,14 @@ def cmd_live(args) -> int:
         LiveGameTail, format_snapshot, write_snapshot_json,
         snapshot_delta, pending_discovers,
     )
+    from .lessons import StoreWatcher, match_lessons
     from .overlay import mirror_live_snapshot, resolve_overlay_dir
 
     log_root = find_log_root(args.logs_root)
     json_file = Path(args.json_file) if args.json_file else DEFAULT_DB.parent / "live.json"
     overlay_dir = resolve_overlay_dir(args.overlay_dir)
     resolver = HeroClassResolver()
+    lesson_store = StoreWatcher()  # mtime-cached; new lessons picked up mid-game
 
     print(f"Live game state (json: {json_file}). Ctrl-C to stop.", flush=True)
     if overlay_dir:
@@ -158,6 +160,11 @@ def cmd_live(args) -> int:
                 print("!! Error: game state stopped exporting — live view is stale", flush=True)
             if snap:
                 snap_failing = False
+                matched = match_lessons(snap, lesson_store.lessons())
+                if matched:
+                    snap["lessons_matched"] = [
+                        {"lesson": rec.lesson, "cost": rec.cost} for rec in matched
+                    ]
                 write_snapshot_json(snap, json_file)
                 if overlay_dir:
                     try:

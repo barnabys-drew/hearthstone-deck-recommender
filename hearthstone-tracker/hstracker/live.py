@@ -643,6 +643,12 @@ def format_snapshot(snap: dict[str, Any]) -> str:
         if texts:
             lines.append("   card text (hand + boards):")
             lines.extend(texts)
+        matched = snap.get("lessons_matched") or []
+        if matched:
+            lines.append(f"   lessons matched ({len(matched)}) — past misplays relevant RIGHT NOW:")
+            for item in matched:
+                cost = f" [cost last time: {item['cost']}]" if item.get("cost") else ""
+                lines.append(f"     {item['lesson']}{cost}")
     deck_left = me.get("deck_cards_left")
     if deck_left:
         counts = ", ".join(

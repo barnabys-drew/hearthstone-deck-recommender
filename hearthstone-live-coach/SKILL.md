@@ -17,6 +17,19 @@ can run shell commands and follow this playbook can coach (see
 know the game well — several of the rules below exist because a capable model
 got them wrong in live play.
 
+## Lessons: remember misplays across games
+
+Misplays are stored in TWO places, and both matter:
+
+1. **`lesson_store.json`** (structured, trigger-matched) — records with
+   trigger conditions that `hst live` matches against every your-turn
+   snapshot and inlines into the marker as `lessons matched (N)` lines.
+   THESE LINES ARE THE HIGHEST-PRIORITY INPUT ON A TURN: they are past
+   mistakes that apply to the exact board in front of you — apply them or
+   explicitly say why not. Record new ones with
+   `coach_publish.py --lesson-record` (see the overlay publishing section).
+2. **`lessons.md`** (prose, human-readable) — the narrative log below.
+
 ## Lessons file: remember misplays across games
 
 `~/.local/share/hearthstone-tracker/lessons.md` is a running, dated list of
@@ -140,6 +153,21 @@ Two more publish forms:
 - **Lessons**: add `--lesson "..."` (repeatable) to any publish — typically the
   mulligan, with the 1-3 lessons relevant to the matchup. Lessons accumulate in
   `lessons.json` across games (deduped) and feed the standalone lessons panel.
+- **Triggered lesson records** (the move-by-move memory): when a misplay is
+  identified — live, by the user, or post-game — record it WITH its trigger so
+  the tracker re-surfaces it automatically on any future turn where it applies:
+  ```bash
+  <repo>/hearthstone-tracker/coach_publish.py --lesson-record '{
+    "lesson": "Kill Bloodhoof Brave in ONE hit or leave it alone (+3 atk while damaged)",
+    "trigger": {"enemy_board": ["Bloodhoof Brave"]},
+    "cost": "7 face damage", "matchup": "vs Warrior", "date": "2026-07-11"}'
+  ```
+  Trigger fields (AND across fields, OR within a list): `enemy_board`,
+  `my_board`, `my_hand` (card names), `enemy_flags` (poisonous/taunt/reborn/...),
+  `opp_class`, `opp_hand_min`. Matching happens inside `hst live` at zero
+  latency; hits appear in the turn marker as `lessons matched (N)` lines and
+  on the overlay lessons panel in red. Prefer a trigger record over a plain
+  `--lesson` whenever the mistake has a concrete cause you can name.
 
 Publish order under time pressure: chat advice FIRST, overlay publish second
 (or in the same tool batch). The overlay is a display, never the blocker.

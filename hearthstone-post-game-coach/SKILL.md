@@ -257,3 +257,20 @@ the same way as above — it doesn't care whether `hst live` ever ran.
 
 - **[hearthstone-live-coach](../hearthstone-live-coach/)** — real-time turn-by-turn advice while playing
 - **[hearthstone-tracker](../hearthstone-tracker/)** — game history and stats database
+
+
+## Feed the trigger-matched lesson store
+
+After identifying the losing decision or a repeated misplay, ALSO record it as
+a structured, triggered lesson so the live coach re-surfaces it automatically
+on future turns where it applies (see hearthstone-live-coach's "Triggered
+lesson records" section for the schema):
+
+```bash
+<repo>/hearthstone-tracker/coach_publish.py --lesson-record '{"lesson": "...",
+  "trigger": {"enemy_board": ["<card>"]}, "cost": "...", "date": "YYYY-MM-DD"}'
+```
+
+Pick the most concrete trigger available (a card name beats a class; a class
+beats nothing). A lesson without a nameable trigger belongs in lessons.md
+prose instead.

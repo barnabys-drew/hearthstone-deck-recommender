@@ -99,11 +99,15 @@ function renderAdvice() {
 }
 
 function renderLessons() {
+  // Live trigger matches first (relevant to the CURRENT board), then the
+  // session/persistent lists.
+  const matched = (live?.lessons_matched || []).map((m) => m.cost ? `${m.lesson} — cost last time: ${m.cost}` : m.lesson);
   const fromFile = lessonsDoc?.lessons || [];
   const fromAdvice = advice?.lessons || [];
   const merged = [...new Set([...fromAdvice, ...fromFile])];
-  $('lessons').innerHTML = merged.length
-    ? merged.map((l) => `<div class="lesson">${escapeHtml(l)}</div>`).join('')
+  $('lessons').innerHTML = matched.length || merged.length
+    ? matched.map((l) => `<div class="lesson matched">${escapeHtml(l)}</div>`).join('')
+      + merged.map((l) => `<div class="lesson">${escapeHtml(l)}</div>`).join('')
     : '<div class="empty">No lessons recorded yet.</div>';
 }
 
@@ -137,7 +141,7 @@ const FILES_BY_PANEL = {
   advice: ['advice.json', 'live.json'],
   deck: ['live.json'],
   opponent: ['live.json'],
-  lessons: ['lessons.json', 'advice.json'],
+  lessons: ['lessons.json', 'advice.json', 'live.json'],
   all: ['live.json', 'advice.json', 'lessons.json'],
 };
 

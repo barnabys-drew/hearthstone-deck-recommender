@@ -193,7 +193,8 @@ def join_games(events: list[dict[str, Any]]) -> dict[tuple, dict[str, Any]]:
             "outcome_ts": None, "corpus_ids": set(), "turn_events": {},
             "fired_ids": set(), "applied_ids": set(), "ingested_ids": set(),
             "t1_ran_turns": set(), "t1_fired_turns": set(),
-            "tier_fired": {"t0": set(), "t1": set()},
+            "t2_ran_turns": set(), "t2_fired_turns": set(),
+            "tier_fired": {"t0": set(), "t1": set(), "t2": set()},
         })
 
     for ev in events:
@@ -210,10 +211,11 @@ def join_games(events: list[dict[str, Any]]) -> dict[tuple, dict[str, Any]]:
             g["fired_ids"] |= ids
             for m in ev.get("matched") or []:
                 g["tier_fired"].setdefault(m.get("tier", "t0"), set()).add(m.get("id"))
-            if "t1" in (ev.get("tiers") or []):
-                g["t1_ran_turns"].add(ev.get("raw_turn"))
-                if any(m.get("tier") == "t1" for m in ev.get("matched") or []):
-                    g["t1_fired_turns"].add(ev.get("raw_turn"))
+            for tier in ("t1", "t2"):
+                if tier in (ev.get("tiers") or []):
+                    g[f"{tier}_ran_turns"].add(ev.get("raw_turn"))
+                    if any(m.get("tier") == tier for m in ev.get("matched") or []):
+                        g[f"{tier}_fired_turns"].add(ev.get("raw_turn"))
         else:
             g["result"] = ev.get("result")
             g["deck"] = ev.get("deck")
@@ -275,18 +277,24 @@ def tier_rows(games: dict[tuple, dict]) -> list[dict[str, Any]]:
     """
     real = _real_games(games)
     all_turns = sum(len(g["turn_events"]) for g in real.values())
-    t0_fired = sum(1 for g in real.values() for t, ids in g["turn_events"].items()
-                   if ids and t not in g["t1_fired_turns"])
-    t1_ran = sum(len(g["t1_ran_turns"]) for g in real.values())
-    t1_fired = sum(len(g["t1_fired_turns"]) for g in real.values())
+    fallback_fired = [g["t1_fired_turns"] | g.get("t2_fired_turns", set())
+                      for g in real.values()]
+    t0_fired = sum(1 for g, fb in zip(real.values(), fallback_fired)
+                   for t, ids in g["turn_events"].items() if ids and t not in fb)
+
+    def fired_lessons(tier: str) -> int:
+        return len(set().union(*(g["tier_fired"].get(tier, set())
+                                 for g in real.values()) or [set()]))
+
     rows = [{"tier": "t0", "turns_ran": all_turns, "turns_fired": t0_fired,
              "fire_rate_pct": round(100 * t0_fired / all_turns) if all_turns else 0,
-             "lessons_fired": len(set().union(*(g["tier_fired"].get("t0", set())
-                                                for g in real.values()) or [set()]))},
-            {"tier": "t1 (on t0 miss)", "turns_ran": t1_ran, "turns_fired": t1_fired,
-             "fire_rate_pct": round(100 * t1_fired / t1_ran) if t1_ran else 0,
-             "lessons_fired": len(set().union(*(g["tier_fired"].get("t1", set())
-                                                for g in real.values()) or [set()]))}]
+             "lessons_fired": fired_lessons("t0")}]
+    for tier, label in (("t1", "t1 (on t0 miss)"), ("t2", "t2 (on t0+t1 miss)")):
+        ran = sum(len(g.get(f"{tier}_ran_turns", set())) for g in real.values())
+        fired = sum(len(g.get(f"{tier}_fired_turns", set())) for g in real.values())
+        rows.append({"tier": label, "turns_ran": ran, "turns_fired": fired,
+                     "fire_rate_pct": round(100 * fired / ran) if ran else 0,
+                     "lessons_fired": fired_lessons(tier)})
     return rows
 
 

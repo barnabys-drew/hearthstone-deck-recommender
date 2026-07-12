@@ -89,6 +89,10 @@ def replay_session(session_dir: Path, lessons: list[Lesson], resolver, *,
     tail = LiveGameTail(session_dir / "Power.log")  # path unused; we drive .lines
     index = LessonIndex(lessons)  # one build per replay run
     t1_on = "t1" in tiers
+    t2 = None
+    if "t2" in tiers:
+        from .embed import T2Retriever
+        t2 = T2Retriever()  # caller (cmd_rag_replay) verifies readiness first
     events: list[dict[str, Any]] = []
     corpus_games: set[int] = set()
     seen_turns: set[tuple[int, int]] = set()
@@ -100,6 +104,8 @@ def replay_session(session_dir: Path, lessons: list[Lesson], resolver, *,
         snap = tail.snapshot(resolver, deck_counts=None)
         if not snap:
             continue
+        if t2 is not None:
+            t2.prime(snap, game_no)  # embeds once per game, at first snapshot
         if game_no not in corpus_games:
             corpus_games.add(game_no)
             events.append({
@@ -128,7 +134,7 @@ def replay_session(session_dir: Path, lessons: list[Lesson], resolver, *,
             continue
         seen_turns.add(key)
         results, tiers_ran = retrieve_lessons(snap, lessons, index=index,
-                                              t1_enabled=t1_on)
+                                              t1_enabled=t1_on, t2=t2)
         opp = snap.get("opp") or {}
         event = {
             "ev": "match", "session": session, "game_no": game_no,
@@ -141,6 +147,8 @@ def replay_session(session_dir: Path, lessons: list[Lesson], resolver, *,
         }
         if candidates and "t1" in tiers_ran:
             event["t1_candidates"] = t1_candidates(snap, index)
+        if candidates and t2 is not None and "t2" in tiers_ran:
+            event["t2_candidates"] = t2.candidates(lessons)
         events.append(event)
     return events
 
@@ -165,6 +173,7 @@ def replay_report(events: list[dict[str, Any]], store: list[Lesson],
             "turns_matched": sum(1 for ids in g["turn_events"].values() if ids),
             "fired_t0": " ".join(sorted(g["tier_fired"].get("t0", set()))),
             "fired_t1": " ".join(sorted(g["tier_fired"].get("t1", set()))),
+            "fired_t2": " ".join(sorted(g["tier_fired"].get("t2", set()))),
         })
     for title, table in (
         ("Replayed games", rows),

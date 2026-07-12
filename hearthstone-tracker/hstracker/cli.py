@@ -146,6 +146,7 @@ def cmd_live(args) -> int:
         LiveGameTail, format_snapshot, write_snapshot_json,
         snapshot_delta, pending_discovers,
     )
+    from .embed import T2Retriever, t2_live_enabled
     from .lessons import StoreWatcher, mirror_store
     from .lexical import retrieve_lessons, t1_live_enabled
     from .overlay import mirror_live_snapshot, resolve_overlay_dir
@@ -157,6 +158,10 @@ def cmd_live(args) -> int:
     resolver = HeroClassResolver()
     lesson_store = StoreWatcher()  # mtime-cached; new lessons picked up mid-game
     rag = RagTurnLogger()  # retrieval telemetry (progressive-RAG Phase 1)
+    # Tier 2 (semantic fallback) is lab-gated: HS_RAG_T2=1 opts in. The
+    # retriever embeds one query per game (at its first snapshot); per-turn
+    # matching is pure dot products over vectors cached by `hst rag-embed`.
+    t2 = T2Retriever() if t2_live_enabled() else None
     mirror_store()  # give the overlay lessons panel the structured store at startup
     _record_game_and_refresh_stats(None, resolver, overlay_dir)  # stats panel at startup
 
@@ -212,8 +217,11 @@ def cmd_live(args) -> int:
             if snap:
                 snap_failing = False
                 # Tier 1 (lexical fallback) is lab-gated: HS_RAG_T1=1 opts in.
+                if t2 is not None:
+                    t2.prime(snap, tail.game_no)  # once per game, not per turn
                 results, tiers_ran = retrieve_lessons(
-                    snap, lesson_store.lessons(), t1_enabled=t1_live_enabled())
+                    snap, lesson_store.lessons(), t1_enabled=t1_live_enabled(),
+                    t2=t2)
                 if results:
                     snap["lessons_matched"] = [
                         {"lesson": r["lesson"].lesson, "cost": r["lesson"].cost,
@@ -419,8 +427,22 @@ def cmd_rag_replay(args) -> int:
 
     store = load_store()
     resolver = HeroClassResolver()
-    events = replay_session(session, store, resolver,
-                            tiers=("t0",) if args.tier0_only else ("t0", "t1"),
+    if args.tier0_only:
+        tiers = ("t0",)
+    elif args.t2:
+        from .embed import CACHE_PATH, Embedder, load_cache
+        if not load_cache():
+            print(f"ERROR: no embedding cache at {CACHE_PATH} — run `hst rag-embed` first",
+                  file=sys.stderr)
+            return 2
+        if not Embedder().available():
+            print("ERROR: fastembed is not installed in this venv — "
+                  "`.venv/bin/python -m pip install fastembed`", file=sys.stderr)
+            return 2
+        tiers = ("t0", "t1", "t2")
+    else:
+        tiers = ("t0", "t1")
+    events = replay_session(session, store, resolver, tiers=tiers,
                             candidates=args.candidates)
 
     if args.json:
@@ -432,6 +454,30 @@ def cmd_rag_replay(args) -> int:
         from .raglog import append_event
         for ev in events:
             append_event(dict(ev), Path(args.log))
+    return 0
+
+
+def cmd_rag_embed(args) -> int:
+    from .embed import CACHE_PATH, Embedder, backfill_embeddings, load_cache
+    from .lessons import load_store
+    from .raglog import lesson_id
+
+    store = load_store()
+    if args.status:
+        vectors = load_cache().get("vectors") or {}
+        covered = sum(1 for rec in store if lesson_id(rec.lesson) in vectors)
+        print(f"cache: {CACHE_PATH}")
+        print(f"lessons: {len(store)}  embedded: {covered}  "
+              f"stale vectors: {len(vectors) - covered}")
+        return 0
+    embedder = Embedder()
+    if not embedder.available():
+        print("ERROR: fastembed is not installed in this venv — "
+              "`.venv/bin/python -m pip install fastembed`", file=sys.stderr)
+        return 2
+    stats = backfill_embeddings(store, embedder=embedder)
+    print(f"embedded {stats['embedded']} new, pruned {stats['pruned']} stale, "
+          f"{stats['total']} total vectors -> {CACHE_PATH}")
     return 0
 
 
@@ -482,8 +528,13 @@ def main(argv=None) -> int:
     p.add_argument("--json", action="store_true", help="Emit raw events as JSON lines (for diff-based regression tests)")
     p.add_argument("--log", help="Also append the replayed events to this JSONL file (never the live log)")
     p.add_argument("--tier0-only", action="store_true", help="A/B baseline: skip the lexical tier")
-    p.add_argument("--candidates", action="store_true", help="Include unthresholded t1 candidate scores in events (threshold tuning)")
+    p.add_argument("--t2", action="store_true", help="Also run the semantic tier (needs `hst rag-embed` first; opt-in so existing replay diffs stay stable)")
+    p.add_argument("--candidates", action="store_true", help="Include unthresholded t1/t2 candidate scores in events (threshold tuning)")
     p.set_defaults(func=cmd_rag_replay)
+
+    p = sub.add_parser("rag-embed", help="Build/refresh the Tier-2 lesson embedding cache (fastembed, local)")
+    p.add_argument("--status", action="store_true", help="Show cache coverage without embedding anything")
+    p.set_defaults(func=cmd_rag_embed)
 
     args = parser.parse_args(argv)
     try:

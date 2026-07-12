@@ -679,9 +679,10 @@ def format_snapshot(snap: dict[str, Any]) -> str:
                 cost = f" [cost last time: {item['cost']}]" if item.get("cost") else ""
                 # The #id lets the coach ack usage: coach_publish --applied-lesson #<id>
                 ref = f"  #{item['id']}" if item.get("id") else ""
-                # T1 = lexical fallback hit, not an exact trigger — the coach
-                # should weigh it below exact matches.
-                fuzzy = "[T1 fuzzy] " if item.get("tier") == "t1" else ""
+                # T1/T2 = fallback hits, not exact triggers — the coach should
+                # weigh them below exact matches (T2 below T1).
+                fuzzy = {"t1": "[T1 fuzzy] ", "t2": "[T2 semantic] "}.get(
+                    item.get("tier") or "", "")
                 lines.append(f"     {fuzzy}{item['lesson']}{cost}{ref}")
     deck_left = me.get("deck_cards_left")
     if deck_left:

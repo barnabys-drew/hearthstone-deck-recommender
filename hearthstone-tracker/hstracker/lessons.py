@@ -124,6 +124,14 @@ def append_lesson(lesson: Lesson | dict[str, Any], path: Path | None = None) -> 
                           "conds": record.trigger.condition_count()})
         except Exception:
             pass
+        # Tier-2 write-time embedding (Phase 3): each lesson is embedded ONCE,
+        # here at record time — never on the retrieval path. No-op until the
+        # user initializes the cache with `hst rag-embed`; best-effort after.
+        try:
+            from .embed import embed_new_lesson
+            embed_new_lesson(record)
+        except Exception:
+            pass
     mirror_store(path)
     return path
 

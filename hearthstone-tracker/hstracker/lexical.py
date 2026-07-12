@@ -181,19 +181,31 @@ def t1_candidates(snapshot: dict[str, Any], index: LessonIndex,
 
 def retrieve_lessons(snapshot: dict[str, Any], lessons: list[Lesson],
                      index: LessonIndex | None = None, cap: int = 3,
-                     t1_enabled: bool = True) -> tuple[list[dict[str, Any]], list[str]]:
+                     t1_enabled: bool = True,
+                     t2=None) -> tuple[list[dict[str, Any]], list[str]]:
     """Tiered retrieval entry point for the live loop and replay.
 
     Returns (results, tiers_ran) where results are
-    [{lesson: Lesson, tier: "t0"|"t1", score: float|None}] and tiers_ran
-    lists the tiers that executed. Tier 1 runs only on a Tier-0 miss.
+    [{lesson: Lesson, tier: "t0"|"t1"|"t2", score: float|None}] and tiers_ran
+    lists the tiers that executed. Each tier runs only when every cheaper
+    tier missed. `t2` is an embed.T2Retriever (already primed for the current
+    game) or None when the semantic tier is disabled.
     """
     exact = match_lessons(snapshot, lessons, cap=cap)
     if exact:
         return [{"lesson": rec, "tier": "t0", "score": None} for rec in exact], ["t0"]
-    if not t1_enabled:
-        return [], ["t0"]
-    index = index if index is not None else index_for(lessons)
-    fuzzy = lexical_match(snapshot, index, cap=cap)
-    return ([{"lesson": rec, "tier": "t1", "score": score} for rec, score in fuzzy],
-            ["t0", "t1"])
+    tiers = ["t0"]
+    if t1_enabled:
+        tiers.append("t1")
+        index = index if index is not None else index_for(lessons)
+        fuzzy = lexical_match(snapshot, index, cap=cap)
+        if fuzzy:
+            return ([{"lesson": rec, "tier": "t1", "score": score}
+                     for rec, score in fuzzy], tiers)
+    if t2 is not None:
+        tiers.append("t2")
+        semantic = t2.match(lessons, cap=cap)
+        if semantic:
+            return ([{"lesson": rec, "tier": "t2", "score": sim}
+                     for rec, sim in semantic], tiers)
+    return [], tiers

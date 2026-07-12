@@ -16,7 +16,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install tracker dependencies
-        run: pip install -r hearthstone-tracker/requirements.txt
+        run: pip install -r hearthstone-tracker/requirements.txt ruff
+      - name: Lint (ruff)
+        run: ruff check .
       - name: Run unit tests
         run: python -m unittest discover -s tests
       - name: Run deck builder self-test

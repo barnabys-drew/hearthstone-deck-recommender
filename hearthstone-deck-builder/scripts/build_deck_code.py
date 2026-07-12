@@ -19,7 +19,6 @@ import textwrap
 import urllib.request
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Iterable
 
 HJSON_LATEST_COLLECTIBLE = "https://api.hearthstonejson.com/v1/latest/enUS/cards.collectible.json"

@@ -7,7 +7,7 @@ no card id and are skipped.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from hearthstone.enums import BlockType, ChoiceType, GameTag, Step, Zone

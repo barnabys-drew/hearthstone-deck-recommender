@@ -23,7 +23,7 @@ jobs:
         run: python -m unittest discover -s tests
       - name: Run overlay JS tests
         working-directory: hearthstone-overlay
-        run: node --test test/
+        run: node --test
       - name: Run deck builder self-test
         run: python hearthstone-deck-builder/scripts/build_deck_code.py --selftest
       - name: Run sample one-shot workflow

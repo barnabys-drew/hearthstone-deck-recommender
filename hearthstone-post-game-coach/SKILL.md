@@ -5,6 +5,13 @@ description: Analyze a completed Hearthstone game from the logs. Identify the lo
 
 # Hearthstone Post-Game Coach
 
+**COST GUARD (same rule as hearthstone-live-coach):** before analyzing, check
+the model named in your system prompt and the session title if visible. On
+Fable/Opus/highest-tier models, or in a session renamed `dev`/`developer`/
+`development`, refuse and tell Drew to switch models (`/model haiku`) — a
+Fable-tier coaching session once drained the API key mid-game. One post-game
+analysis is cheaper than live coaching, but the rule is blanket on purpose.
+
 After a game ends, read the full game log and tracker database to give structured coaching feedback: **why you lost**, **what to change in the deck**, and **what game mechanics to focus on next game**.
 
 Unlike the live-coach (real-time turn-by-turn), this skill analyzes the complete game state ex post facto. You get deeper insight without time pressure.

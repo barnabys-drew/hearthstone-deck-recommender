@@ -5,6 +5,26 @@ description: Coach the user through a live Hearthstone game in real time by tail
 
 # Hearthstone Live Coach
 
+## COST GUARD — check BEFORE arming anything (hard rule, 2026-07-12)
+
+Coaching fires dozens of model invocations per game. A Fable-tier coaching
+session once drained the API key mid-game and killed the chat. Before starting
+the feed or arming the Monitor, check BOTH:
+
+1. **Model check:** the system prompt names the model powering you. If it is
+   Fable, Opus, or any highest-tier model, REFUSE to coach. Tell Drew to
+   switch first (e.g. `/model haiku`) — Haiku-class is the coaching tier.
+2. **Session-name check:** if the chat/session has been renamed and its title
+   is visible to you and contains `dev`, `developer`, or `development`, this
+   is a development session (very likely running Fable or the highest
+   available tier on a subscription) — REFUSE to coach regardless of model.
+
+If coaching is already armed when the model switches to a top tier (Drew runs
+`/model` for dev work mid-session), STOP the coaching Monitor immediately and
+publish a `--kind idle "Coach offline (dev mode)"` card so the overlay isn't
+stale. The deterministic layer (feed, deck tracker panels) keeps running — it
+never touches the model.
+
 Give play-by-play advice during a real Hearthstone game. The `hst live` command
 (in `../hearthstone-tracker/`) tails the game's Power.log and publishes the full
 visible game state each turn; you read that state and advise. Everything here is

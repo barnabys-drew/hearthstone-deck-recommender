@@ -158,6 +158,33 @@ value of context.
 SOC transfer: a per-alert token budget is the primary cost lever for an LLM
 triage agent at volume; ranking evidence under that budget is the craft.
 
+## Phase 6 — Coach feedback & reasoning improvement (deferred)
+
+**Entry gate:** Phase-1+ telemetry shows what retrieval earned. Now measure
+whether the *advice given using that retrieval* was sound — did the user follow
+it, did it win, was it clear?
+
+*Orthogonal to Phases 1–5*: retrieval improves *context*; this phase improves
+*generation given context*. Build only after retrieval is instrumented.
+
+Build (when gated in):
+- Post-game feedback: user rates whether they followed each advice, and if
+  following it correlated with the outcome (win/loss).
+- Advice telemetry: tag each turn's chat advice with an id; join against
+  post-game ratings to build a (context, advice, followed?, won?) dataset.
+- Quality metrics per-coach-session: % of advice followed, % of followed
+  advice that correlated with winning, contradiction rate (same board state,
+  different advice across turns).
+- A/B test generation: prompt variations, reasoning-check branches, style
+  tuning — only after measurement shows which lever matters.
+
+Teaches: generation telemetry, feedback loops, distinguishing retrieval
+quality from reasoning quality, A/B testing LLM output.
+
+SOC transfer: a triage agent's dispositions are measured by analyst adoption
+(did they use it?) and outcomes (was it right?). Coach quality is analogous:
+measure adoption and win correlation before investing in prompt tuning.
+
 ## Standing constraints (apply to every phase)
 
 Not phases of their own — invariants the whole stack must respect, recorded

@@ -32,3 +32,4 @@ cookies.txt
 .claude/settings.local.json
 deck.txt
 hearthstone-overlay/config.json
+.pytest_cache/

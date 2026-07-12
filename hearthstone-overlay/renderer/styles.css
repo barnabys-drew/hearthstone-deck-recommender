@@ -51,6 +51,10 @@ body[data-panel="advice"] #panel-advice { display: flex !important; height: 100%
 body[data-panel="deck"] #panel-deck { display: flex !important; height: 100%; }
 body[data-panel="opponent"] #panel-opponent { display: flex !important; height: 100%; }
 body[data-panel="lessons"] #panel-lessons { display: flex !important; height: 100%; }
+body[data-panel="stats"] #panel-stats { display: flex !important; height: 100%; }
+body[data-panel="controls"] #panel-controls { display: flex !important; height: 100%; }
+/* The controls bar is Electron-only: quitting/move-mode mean nothing in a browser tab. */
+body[data-panel="all"] #panel-controls { display: none !important; }
 
 .advice-card, .tracker-card {
   border: 1px solid var(--stroke);
@@ -116,6 +120,10 @@ h2 { margin: 0 0 5px; display: flex; justify-content: space-between; }
 .cost { display: grid; place-items: center; width: 19px; height: 19px; border-radius: 5px; background: linear-gradient(180deg, #3b6fd4, #274b9b); color: #fff; font-weight: 800; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,.6); font-family: var(--hs-font); }
 .odds { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 10px; min-width: 26px; text-align: right; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
 .stats-record { font-family: var(--hs-font); font-size: 17px; font-weight: 800; color: var(--text); }
+.streak { font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; }
+.streak.w { background: rgba(46, 204, 113, .22); color: var(--green); }
+.streak.l { background: rgba(231, 76, 60, .22); color: var(--red); }
+.stats-overall { color: var(--faint); font-size: 11px; margin: 2px 0 6px; }
 .stats-last10 { display: flex; align-items: center; gap: 3px; margin: 6px 0; }
 .pip { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .pip.w { background: var(--green); }
@@ -136,6 +144,35 @@ h2 { margin: 0 0 5px; display: flex; justify-content: space-between; }
 .empty { color: var(--faint); font-size: 11px; }
 footer { margin-top: auto; display: flex; justify-content: space-between; gap: 8px; color: var(--faint); font-size: 9px; border-top: 1px solid rgba(255,255,255,.06); padding-top: 6px; }
 .hidden { display: none !important; }
+/* Controls bar: two always-clickable buttons (quit + move/lock). */
+.controls-card {
+  border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 6px 12px rgba(0,0,0,.28);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px;
+}
+.ctl {
+  -webkit-app-region: no-drag;
+  width: 30px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--stroke);
+  border-radius: 7px;
+  background: rgba(0,0,0,.22);
+  color: var(--muted);
+  font: 700 14px/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  padding: 0;
+  cursor: pointer;
+}
+.ctl:hover { color: var(--text); background: rgba(88,101,242,.3); border-color: rgba(88,101,242,.55); }
+.ctl.quit:hover { color: #fff; background: rgba(242,63,66,.6); border-color: rgba(242,63,66,.8); }
 /* Move mode: the cards become drag regions with a visible glow. */
 body.movable .advice-card, body.movable .tracker-card { -webkit-app-region: drag; outline: 2px solid var(--blurple); outline-offset: -2px; }
+body.movable .controls-card { -webkit-app-region: drag; outline: 2px solid var(--blurple); outline-offset: -2px; }
+body.movable #btn-move { color: #fff; background: var(--blurple); border-color: var(--blurple); }
 .waiting .steps:empty::after { content: "No current instructions."; color: var(--faint); font-size: 13px; }

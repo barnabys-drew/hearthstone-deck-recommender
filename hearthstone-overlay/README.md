@@ -46,6 +46,12 @@ npm install
 npm start
 ```
 
+**Start from a shortcut:** once the app copy lives at
+`C:\Users\<you>\hearthstone-overlay` (with `npm install` done), double-click
+`start-overlay.cmd` — it kills any running overlay and relaunches it detached,
+logging to `electron.log` in that folder. `stop-overlay.cmd` shuts it down.
+Right-click either file → *Send to → Desktop (create shortcut)* to pin them.
+
 If you want a different shared folder, edit `config.json`:
 
 ```json
@@ -82,13 +88,17 @@ Defaults are configured in `config.json`:
   re-lock instantly). While unlocked, drag a panel by its body and resize
   from any edge or corner.
 - `Ctrl+Shift+9` — show/hide all panels
-- `Ctrl+Shift+1/2/3/4` — toggle the advice / deck / opponent / lessons panel
+- `Ctrl+Shift+1/2/3/4/5` — toggle the advice / deck / opponent / lessons / stats panel
 - `Ctrl+Shift+-` / `Ctrl+Shift+=` — opacity down/up
 - `Ctrl+Shift+0` — reset all panel positions
 
 The window starts click-through so it will not eat Hearthstone clicks. Toggle click-through off to move or resize it, then toggle it back on.
 
-## What the overlay shows — four standalone panels
+No hotkeys handy? The tiny **controls** bar (top-left by default) is never
+click-through: ✥ toggles move/lock for all panels (same as `Ctrl+Shift+F`),
+⏻ quits the overlay entirely.
+
+## What the overlay shows — five standalone panels + a controls bar
 
 Each panel is its own always-on-top window with saved position/size,
 draggable and resizable on all four edges in move mode:
@@ -104,3 +114,11 @@ draggable and resizable on all four edges in move mode:
    they've played or revealed, newest first, with art tiles.
 4. **Lessons** — coaching lessons accumulated across games (`--lesson` lines
    persist to `lessons.json`, deduped, newest first).
+5. **Stats** — the current deck's record, win streak (e.g. `W3`), last-10
+   form pips, best/worst matchups by opponent class, and your overall record
+   across all decks. Computed from `games.db` and written to
+   `deck_stats.json` whenever a game finishes.
+6. **Controls** — a ~90×36 button bar that always accepts clicks (never
+   click-through): ✥ move/lock, ⏻ quit. Hidden in browser mode, where
+   neither action applies. It hides and shows with `Ctrl+Shift+9` like the
+   rest, and its position is saved too.

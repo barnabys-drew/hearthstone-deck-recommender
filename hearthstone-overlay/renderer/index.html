@@ -55,12 +55,19 @@
 
     <aside class="tracker-card panel" id="panel-stats">
       <section>
-        <h2>Deck stats <span id="stats-deck"></span></h2>
+        <h2>Deck stats <span id="stats-deck"></span> <span id="stats-streak"></span></h2>
         <div id="stats-record" class="stats-record empty">No games recorded yet.</div>
+        <div id="stats-overall" class="stats-overall"></div>
         <div id="stats-last10" class="stats-last10"></div>
         <div id="stats-matchups" class="stats-matchups"></div>
       </section>
       <footer><span class="overlay-state">click-through</span></footer>
+    </aside>
+
+    <!-- Tiny always-clickable button bar (Electron only; hidden in browser mode). -->
+    <aside class="controls-card panel" id="panel-controls">
+      <button id="btn-move" class="ctl" title="Move / lock panels (Ctrl+Shift+F)">&#x2725;</button>
+      <button id="btn-quit" class="ctl quit" title="Quit overlay">&#x23FB;</button>
     </aside>
   </main>
   <script src="logic.js"></script>

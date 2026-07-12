@@ -1,12 +1,12 @@
 ---
 name: hearthstone-overlay
-description: Start (or restart) the Hearthstone coach overlay — four native always-on-top panels (turn advice, HDT-style deck tracker, opponent tracker, coaching lessons) fed by the hearthstone-tracker live feed. Use when the user asks to start/launch/restart the overlay, says panels are missing or stale, or wants the coach's advice shown in-game instead of only in chat. Pairs with hearthstone-live-coach, which publishes the advice this overlay displays.
+description: Start (or restart) the Hearthstone coach overlay — five native always-on-top panels (turn advice, HDT-style deck tracker, opponent tracker, coaching lessons, deck stats) fed by the hearthstone-tracker live feed. Use when the user asks to start/launch/restart the overlay, says panels are missing or stale, or wants the coach's advice shown in-game instead of only in chat. Pairs with hearthstone-live-coach, which publishes the advice this overlay displays.
 ---
 
 # Hearthstone Coach Overlay — startup
 
 Bring up the full overlay stack: the WSL feed that mirrors game state, and the
-four Windows panels that render it. Everything here was learned the hard way —
+five Windows panels that render it. Everything here was learned the hard way —
 follow the exact commands, the quoting workarounds matter.
 
 ## Architecture (10-second version)
@@ -17,7 +17,8 @@ follow the exact commands, the quoting workarounds matter.
 - WSL: `coach_publish.py` writes `advice.json` (turn plans, discover picks)
   and `lessons.json` (accumulating coaching lessons) into the same folder.
 - Windows: an Electron app (copied to `C:\Users\%WINUSER%\hearthstone-overlay`)
-  polls those files and renders four standalone always-on-top panels.
+  polls those files and renders five standalone always-on-top panels
+  (advice, deck, opponent, lessons, stats).
 
 ## Start procedure
 
@@ -38,6 +39,7 @@ follow the exact commands, the quoting workarounds matter.
    ```bash
    cp <repo>/hearthstone-overlay/main.js <repo>/hearthstone-overlay/preload.js \
       <repo>/hearthstone-overlay/package.json <repo>/hearthstone-overlay/config.example.json \
+      <repo>/hearthstone-overlay/start-overlay.cmd <repo>/hearthstone-overlay/stop-overlay.cmd \
       /mnt/c/Users/$WINUSER/hearthstone-overlay/
    cp <repo>/hearthstone-overlay/renderer/*.* /mnt/c/Users/$WINUSER/hearthstone-overlay/renderer/
    ```
@@ -46,7 +48,15 @@ follow the exact commands, the quoting workarounds matter.
    the user's saved panel positions. Only seed it from `config.example.json`
    if it does not exist.
 
-3. **Restart the Electron app** (from WSL; `start` detaches, output goes to a
+3. **Restart the Electron app**. Easy path — run the launcher script (same
+   kill + detached start + log, packaged as a double-clickable .cmd the user
+   can also pin as a Desktop shortcut):
+
+   ```bash
+   cd /mnt/c && cmd.exe /c "C:\Users\%WINUSER%\hearthstone-overlay\start-overlay.cmd"
+   ```
+
+   Or the manual equivalent (from WSL; `start` detaches, output goes to a
    log so hotkey-registration failures are visible):
 
    ```bash
@@ -55,7 +65,7 @@ follow the exact commands, the quoting workarounds matter.
    nohup cmd.exe /c "C:\Users\%WINUSER%\hearthstone-overlay\node_modules\electron\dist\electron.exe C:\Users\%WINUSER%\hearthstone-overlay > C:\Users\%WINUSER%\hearthstone-overlay\electron.log 2>&1" >/dev/null 2>&1 &
    sleep 4
    cat /mnt/c/Users/$WINUSER/hearthstone-overlay/electron.log  # empty = all hotkeys registered
-   cmd.exe /c "tasklist" 2>/dev/null | grep -ci electron    # ~7 processes = 4 panels up
+   cmd.exe /c "tasklist" 2>/dev/null | grep -ci electron    # ~10 processes = 6 windows up
    ```
 
    Windows-side gotchas (all real):
@@ -80,9 +90,12 @@ follow the exact commands, the quoting workarounds matter.
    - `Ctrl+Shift+F` — unlock move/resize for all panels (purple glow); drag a
      card body to move, any edge/corner to resize; auto-relocks ~4s after the
      last drag.
-   - `Ctrl+Shift+1/2/3/4` — toggle advice / deck / opponent / lessons panel.
+   - `Ctrl+Shift+1/2/3/4/5` — toggle advice / deck / opponent / lessons / stats panel.
    - `Ctrl+Shift+9` — show/hide all. `Ctrl+Shift+0` — reset layout.
      `Ctrl+Shift+-` / `Ctrl+Shift+=` — opacity.
+   - The tiny **controls bar** (top-left by default) always accepts clicks:
+     ✥ toggles move/lock (same as `Ctrl+Shift+F`), ⏻ quits the overlay —
+     the mouse-only way out. `stop-overlay.cmd` also quits.
 
 ## Fallback: browser mode (no Node/Electron)
 

@@ -30,6 +30,20 @@
       "width": 430,
       "height": 220,
       "visible": true
+    },
+    "stats": {
+      "x": 48,
+      "y": 900,
+      "width": 430,
+      "height": 150,
+      "visible": true
+    },
+    "controls": {
+      "x": 48,
+      "y": 48,
+      "width": 90,
+      "height": 36,
+      "visible": true
     }
   },
   "hotkeys": {
@@ -41,6 +55,7 @@
     "toggleAdvice": "CommandOrControl+Shift+1",
     "toggleDeck": "CommandOrControl+Shift+2",
     "toggleOpponent": "CommandOrControl+Shift+3",
-    "toggleLessons": "CommandOrControl+Shift+4"
+    "toggleLessons": "CommandOrControl+Shift+4",
+    "toggleStats": "CommandOrControl+Shift+5"
   }
 }

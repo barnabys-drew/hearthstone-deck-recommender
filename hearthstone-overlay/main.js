@@ -7,9 +7,11 @@ const { mergeConfig } = require('./renderer/logic.js');
 const appDir = __dirname;
 const configPath = path.join(appDir, 'config.json');
 
-// Four standalone always-on-top panels; each has its own saved bounds and
+// Standalone always-on-top panels; each has its own saved bounds and
 // visibility, and every one is draggable + resizable on all four edges.
-const PANELS = ['advice', 'deck', 'opponent', 'lessons', 'stats'];
+// 'controls' is special: a tiny two-button bar that is NEVER click-through,
+// so the mouse can always reach its quit and move/lock buttons.
+const PANELS = ['advice', 'deck', 'opponent', 'lessons', 'stats', 'controls'];
 const DATA_FILES = ['live.json', 'advice.json', 'lessons.json', 'lesson_store.json', 'deck_stats.json'];
 
 const defaults = {
@@ -23,6 +25,7 @@ const defaults = {
     opponent: { x: 762, y: 96, width: 260, height: 480, visible: true },
     lessons: { x: 48, y: 668, width: 430, height: 220, visible: true },
     stats: { x: 48, y: 900, width: 430, height: 150, visible: true },
+    controls: { x: 48, y: 48, width: 90, height: 36, visible: true },
   },
   hotkeys: {
     toggleClickThrough: 'CommandOrControl+Shift+F',
@@ -89,6 +92,7 @@ function saveConfig() {
 
 function createPanel(name) {
   const bounds = config.windows[name];
+  const isControls = name === 'controls'; // fixed-size button bar, always clickable
   const win = new BrowserWindow({
     x: bounds.x,
     y: bounds.y,
@@ -97,7 +101,7 @@ function createPanel(name) {
     show: bounds.visible !== false,
     frame: false,
     transparent: true,
-    resizable: true,
+    resizable: !isControls,
     movable: true,
     alwaysOnTop: true,
     skipTaskbar: true,
@@ -115,7 +119,7 @@ function createPanel(name) {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.setOpacity(Number(config.opacity || 0.94));
-  win.setIgnoreMouseEvents(true, { forward: true });
+  if (!isControls) win.setIgnoreMouseEvents(true, { forward: true });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), { query: { panel: name } });
   win.on('move', () => { saveConfig(); armMoveModeTimer(); });
   win.on('resize', () => { saveConfig(); armMoveModeTimer(); });
@@ -134,6 +138,7 @@ function setClickThrough(value) {
   clickThrough = value;
   clearTimeout(moveModeTimer);
   for (const name of PANELS) {
+    if (name === 'controls') continue; // the button bar must stay clickable
     const win = wins[name];
     if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(clickThrough, { forward: true });
   }
@@ -257,6 +262,13 @@ ipcMain.handle('read-json', async (_event, fileName) => {
 });
 
 ipcMain.handle('set-click-through', (_event, value) => setClickThrough(Boolean(value)));
+
+// Quit button on the controls bar — the only mouse-driven way out, since
+// every other panel is click-through.
+ipcMain.handle('overlay-quit', () => {
+  saveConfigNow();
+  app.quit();
+});
 
 app.whenReady().then(() => {
   for (const name of PANELS) wins[name] = createPanel(name);

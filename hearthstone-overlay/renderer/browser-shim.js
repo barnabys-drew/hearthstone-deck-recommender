@@ -11,6 +11,7 @@ if (!window.overlayAPI) {
     }),
     artPath: (cardId) => Promise.resolve(`/art/${encodeURIComponent(cardId)}.png`),
     setClickThrough: () => {},
+    quit: () => {}, // a browser tab cannot quit the overlay; the button is hidden anyway
     onState: (callback) => callback({ clickThrough: false, opacity: 1 }),
     onFileChanged: () => {}, // browser mode has no watcher; polling covers it
   };

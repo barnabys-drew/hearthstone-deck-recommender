@@ -128,6 +128,13 @@ function renderStats() {
     ? `${deckStats.wins}–${deckStats.losses} · ${deckStats.winrate}% over ${deckStats.games} games`
     : 'first recorded game with this deck';
   $('stats-record').classList.remove('empty');
+  const streak = $('stats-streak');
+  streak.textContent = deckStats.streak || '';
+  streak.className = deckStats.streak ? `streak ${deckStats.streak[0] === 'W' ? 'w' : 'l'}` : '';
+  const overall = deckStats.overall;
+  $('stats-overall').textContent = overall?.games
+    ? `Overall: ${overall.wins}–${overall.losses} · ${overall.winrate}% over ${overall.games} games`
+    : '';
   $('stats-last10').innerHTML = (deckStats.last10 || []).map((w) => `<span class="pip ${w ? 'w' : 'l'}"></span>`).join('')
     + (deckStats.last10?.length ? '<span class="pip-label">last 10, newest first</span>' : '');
   $('stats-matchups').innerHTML = (deckStats.matchups || []).map((m) =>
@@ -170,6 +177,7 @@ const FILES_BY_PANEL = {
   opponent: ['live.json'],
   lessons: ['lesson_store.json', 'live.json'],
   stats: ['deck_stats.json'],
+  controls: [], // buttons only — renders no data
   all: ['live.json', 'advice.json', 'lessons.json', 'lesson_store.json', 'deck_stats.json'],
 };
 
@@ -180,8 +188,19 @@ async function tick() {
   if (changed) render();
 }
 
+// Controls bar: two buttons that must always work with a mouse — quit, and
+// the same move/lock toggle as the Ctrl+Shift+F hotkey. The move button's
+// pressed look comes from the existing body.movable class.
+function wireControls() {
+  let clickThrough = true; // the main process always starts locked
+  window.overlayAPI.onState((state) => { clickThrough = state.clickThrough; });
+  $('btn-move').addEventListener('click', () => window.overlayAPI.setClickThrough(!clickThrough));
+  $('btn-quit').addEventListener('click', () => window.overlayAPI.quit?.());
+}
+
 async function boot() {
   document.body.dataset.panel = panel;
+  if (panel === 'controls') wireControls();
   config = await window.overlayAPI.config();
   const dataPath = $('data-path');
   if (dataPath) dataPath.textContent = config.overlayDir;

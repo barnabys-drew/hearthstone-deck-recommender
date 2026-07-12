@@ -88,6 +88,12 @@ def cmd_watch(args) -> int:
     return 0
 
 
+def _current_deck_name(session_dir) -> str | None:
+    """Name of the most recently queued deck, from Decks.log."""
+    events = [ev for path in deck_logs(session_dir) for ev in parse_decks_log(path)]
+    return events[-1].name if events else None
+
+
 def _current_deck_counts(session_dir, resolver) -> dict[str, int] | None:
     """{card_id: copies} for the most recently queued deck, from Decks.log."""
     from .decks import decode_deckstring_counts
@@ -173,6 +179,15 @@ def cmd_live(args) -> int:
                 # A new game began; re-read Decks.log for the deck just queued.
                 deck_game_no = tail.game_no
                 deck_counts = _current_deck_counts(current_dir, resolver)
+                # Stats panel follows the deck you QUEUED with, from game start.
+                try:
+                    from .db import connect
+                    from .deckstats import write_deck_stats
+                    conn = connect(resolve_db_path(None))
+                    write_deck_stats(conn, overlay_dir, _current_deck_name(current_dir))
+                    conn.close()
+                except Exception:
+                    pass
                 seen_discover_ids.clear()  # reset for the new game
                 last_snap = None  # don't diff game N's opener against game N-1
                 snap_failing = False

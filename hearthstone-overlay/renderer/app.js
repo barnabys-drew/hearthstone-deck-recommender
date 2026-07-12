@@ -124,7 +124,9 @@ function renderLessons() {
 function renderStats() {
   if (!deckStats) return;
   $('stats-deck').textContent = deckStats.deck || '';
-  $('stats-record').textContent = `${deckStats.wins}–${deckStats.losses} · ${deckStats.winrate}% over ${deckStats.games} games`;
+  $('stats-record').textContent = deckStats.games
+    ? `${deckStats.wins}–${deckStats.losses} · ${deckStats.winrate}% over ${deckStats.games} games`
+    : 'first recorded game with this deck';
   $('stats-record').classList.remove('empty');
   $('stats-last10').innerHTML = (deckStats.last10 || []).map((w) => `<span class="pip ${w ? 'w' : 'l'}"></span>`).join('')
     + (deckStats.last10?.length ? '<span class="pip-label">last 10, newest first</span>' : '');

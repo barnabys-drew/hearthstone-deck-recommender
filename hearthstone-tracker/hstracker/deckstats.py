@@ -30,7 +30,9 @@ def deck_stats(conn: sqlite3.Connection, deck_name: str | None = None) -> dict[s
         "WHERE deck_name = ? AND game_type IN (?, ?) AND result IN ('WON', 'LOST') "
         "ORDER BY start_time DESC", (deck_name, *_CONSTRUCTED)).fetchall()
     if not games:
-        return None
+        # Newly selected deck with no history yet — still name it on the panel.
+        return {"deck": deck_name, "games": 0, "wins": 0, "losses": 0,
+                "winrate": 0, "last10": [], "matchups": []}
 
     wins = sum(1 for r in games if r[0] == "WON")
     last10 = [r[0] == "WON" for r in games[:10]]
@@ -58,10 +60,10 @@ def deck_stats(conn: sqlite3.Connection, deck_name: str | None = None) -> dict[s
     }
 
 
-def write_deck_stats(conn: sqlite3.Connection, overlay_dir=None) -> None:
+def write_deck_stats(conn: sqlite3.Connection, overlay_dir=None, deck_name: str | None = None) -> None:
     """Best-effort mirror of current-deck stats for the overlay panel."""
     try:
-        payload = deck_stats(conn)
+        payload = deck_stats(conn, deck_name)
         if payload:
             atomic_write_json(resolve_overlay_dir(overlay_dir) / "deck_stats.json", payload)
     except (sqlite3.Error, OSError):

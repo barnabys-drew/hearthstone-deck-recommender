@@ -12,11 +12,20 @@
 ## Why this exists
 
 I came back to Hearthstone after a long break and the game handed me a pile of free
-cards and dust. I had no idea what was worth building. Every meta site could tell me
-what the best decks were, but none could tell me **which of those decks *my*
-collection was already closest to finishing**. This tool answers exactly that: it
-compares your collection against current top Standard decks, ranks them by the dust
-you'd actually have to spend, and hands you a ready-to-import deck code.
+cards and dust. Two problems:
+
+1. **What should I craft?** Every meta site could tell me what the best decks were, but
+   none could tell me **which of those decks *my* collection was already closest to
+   finishing**. This tool answers exactly that: it compares your collection against
+   current top Standard decks, ranks them by the dust you'd actually have to spend,
+   and hands you a ready-to-import deck code.
+
+2. **How do I play this?** I'd build a meta deck, but then have no idea what to do with
+   all the new cards against an unfamiliar meta. The AI coach solves this: it watches
+   your games in real time, shows you turn-by-turn advice ("what's my play?") with the
+   actual hand, board, and lethal math in front of you, learns from your misplays and
+   past games to build a personal playbook, and feeds an always-on-top overlay so the
+   advice stays right there while you play.
 
 [![CI](https://github.com/barnabys-drew/hearthstone-ai-coach/actions/workflows/ci.yml/badge.svg)](https://github.com/barnabys-drew/hearthstone-ai-coach/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -25,18 +34,15 @@ you'd actually have to spend, and hands you a ready-to-import deck code.
 
 ## Screenshots
 
-| Deck tracker + deck stats | Coach, lessons & opponent tracker |
+| Deck tracker + deck stats | Coach advice, lessons, & opponent tracker |
 |---------------------------|-----------------------------------|
 | ![Deck tracker and stats panels](docs/screenshots/deck-tracker-stats.png) | ![Coach, lessons and opponent panels](docs/screenshots/coach-lessons-opponent.png) |
 
-Left: the HDT-style deck tracker mid-game — original list with draw
-percentages, plus every generated/shuffled card the tracker picked up from
-the log — and the per-deck stats panel with matchup win rates. Right: the
-coach's advice card (idle here — panels keep tracking even with no AI
-attached), the accumulating lessons panel with the cross-game headline
-lesson, and the opponent tracker showing every card they've played or
-revealed. The opponent's hand is only ever the hidden-card count the game
-client itself exposes.
+**Left:** The HDT-style deck tracker mid-game — your original deck list with draw percentages at the top, plus every generated/shuffled card the tracker detected from the log. Below that, the per-deck stats panel showing your historical win rates against each matchup.
+
+**Right:** The live coach's advice (top panel, turn-by-turn suggestions with hand/board/lethal context), the accumulating coaching lessons panel (middle, cross-game patterns and situational tips learned from your play), and the opponent tracker (bottom, every card they've played or revealed). The opponent's hand shows only the hidden-card count the game client itself exposes — no cheating.
+
+> ⚠️ **Note:** Coaching screenshots are stale and need updating to show live AI suggestions in action. The UI has evolved; when you set up a fresh coaching session, the advice card will show actual turn-by-turn guidance rather than "offline" status.
 
 ## Two ways to use it
 

@@ -67,6 +67,13 @@ Teach one specific lesson from this game:
 - **Mulligan:** "You kept Shield Block against Burn Mage; against Mage you want early removal. Next game, mulligan it away."
 - **Mana efficiency:** "You played 1 card per turn for 3 turns. Meanwhile they dumped their hand. You were outpaced."
 
+### 4b. Record the lesson (MANDATORY after a loss)
+Every loss analysis MUST end with at least one `--lesson-record` capturing
+the deciding mistake — with its trigger, **and with `"deck"` set to the deck
+that was played** so the overlay panel can surface it in future games with
+that deck. Analysis that isn't recorded is knowledge the next game doesn't
+have (real gap: 12 losses on one deck, zero lessons in the store).
+
 ### 5. KB hygiene (Phase 4 — end of a coaching session)
 After the last game of a session (not after every game), run the lesson-store
 maintenance pass and act on its report:

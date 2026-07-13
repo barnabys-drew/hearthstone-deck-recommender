@@ -51,14 +51,20 @@
   // across all games, marked headline:true — newest wins), then two short
   // glanceable points (deck tips / kill mechanics). Anything currently
   // matched (shown in red above) is excluded so nothing appears twice.
-  function panelLessons(records, { points = 2, exclude = [] } = {}) {
+  function panelLessons(records, { points = 2, exclude = [], deck = null } = {}) {
     const excluded = new Set(exclude);
     const usable = (records || []).filter((rec) => rec && rec.lesson && !excluded.has(rec.lesson));
     const headline = usable.find((rec) => rec.headline) || null;
     const rest = usable.filter((rec) => rec !== headline);
-    // Prefer deck-tagged tips for the points; fall back to general ones.
-    const deckTips = rest.filter((rec) => (rec.deck || '').trim());
-    const generalTips = rest.filter((rec) => !(rec.deck || '').trim());
+    // Tips for the CURRENT deck first, then general ones. Tips tagged for a
+    // DIFFERENT deck are noise and never shown (real complaint: Aya Rogue
+    // tips filling the panel during a Two Bit Rogue session). When the live
+    // deck is unknown, deck-tagged tips still rank first (old behavior).
+    const norm = (s) => (s || '').trim().toLowerCase();
+    const current = norm(deck);
+    const tagged = rest.filter((rec) => norm(rec.deck));
+    const deckTips = current ? tagged.filter((rec) => norm(rec.deck) === current) : tagged;
+    const generalTips = rest.filter((rec) => !norm(rec.deck));
     return { headline, points: [...deckTips, ...generalTips].slice(0, points) };
   }
 

@@ -109,7 +109,7 @@ function renderLessons() {
   // Red live matches (full text — they matter RIGHT NOW), then ONE
   // synthesized cross-game headline, then two glanceable tips.
   const matchedRecs = live?.lessons_matched || [];
-  const { headline, points } = panelLessons(lessonStore?.lessons || [], { exclude: matchedRecs.map((m) => m.lesson) });
+  const { headline, points } = panelLessons(lessonStore?.lessons || [], { exclude: matchedRecs.map((m) => m.lesson), deck: live?.deck });
   const sections = [];
   if (matchedRecs.length) {
     sections.push(matchedRecs.map((m) => `<div class="lesson matched">${escapeHtml(m.cost ? `${m.lesson} — cost last time: ${m.cost}` : m.lesson)}</div>`).join(''));

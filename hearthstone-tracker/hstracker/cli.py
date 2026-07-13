@@ -230,6 +230,11 @@ def cmd_live(args) -> int:
                 if budgeting and results:
                     results, dropped, spent = assemble(results)
                     budget_info = {"chars": spent, "dropped": dropped}
+                if deck_name:
+                    # The overlay lessons panel filters deck-tagged tips by
+                    # the deck actually being played (real complaint: Aya
+                    # Rogue tips shown all through a Two Bit Rogue session).
+                    snap["deck"] = deck_name
                 if results:
                     snap["lessons_matched"] = [
                         {"lesson": r["lesson"].lesson, "cost": r["lesson"].cost,

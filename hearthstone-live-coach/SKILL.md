@@ -201,13 +201,23 @@ Two more publish forms:
   `lessons.json` across games (deduped) and feed the standalone lessons panel.
 - **Triggered lesson records** (the move-by-move memory): when a misplay is
   identified — live, by the user, or post-game — record it WITH its trigger so
-  the tracker re-surfaces it automatically on any future turn where it applies:
+  the tracker re-surfaces it automatically on any future turn where it applies.
+  **Always set `"deck"` to the deck actually being played** (the deck name is
+  in the feed and on the deck-stats panel) — the lessons panel filters
+  deck-tagged tips by the live deck, so an untagged or wrong-deck record
+  either shows generically or not at all. Real gap this caused: 17 Two Bit
+  Rogue games, 12 losses, zero Two Bit lessons recorded while old Aya Rogue
+  tips filled the panel.
   ```bash
   <repo>/hearthstone-tracker/coach_publish.py --lesson-record '{
     "lesson": "Kill Bloodhoof Brave in ONE hit or leave it alone (+3 atk while damaged)",
     "trigger": {"enemy_board": ["Bloodhoof Brave"]},
-    "cost": "7 face damage", "matchup": "vs Warrior", "date": "2026-07-11"}'
+    "cost": "7 face damage", "deck": "Two Bit Rogue",
+    "matchup": "vs Warrior", "date": "2026-07-11"}'
   ```
+  **Every LOSS must produce at least one lesson record** (live when you spot
+  the misplay, or in the game-over post-mortem). A 0-3 matchup with zero
+  recorded lessons is the lessons engine failing at its one job.
   Trigger fields (AND across fields, OR within a list): `enemy_board`,
   `my_board`, `my_hand` (card names), `enemy_flags` (poisonous/taunt/reborn/...),
   `opp_class`, `opp_hand_min`. Matching happens inside `hst live` at zero

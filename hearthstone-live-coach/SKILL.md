@@ -156,10 +156,17 @@ mulligan advice and the overlay sat on a stale card all game). On the
 answer — before turn 1 advice, no exceptions.
 
 Use `../hearthstone-tracker/coach_publish.py` (or the absolute repo path) and
-keep the payload short enough to scan while playing:
+keep the payload short enough to scan while playing.
+
+**Every publish carries `--model` (Phase 6a, required).** Pass the model
+name your system prompt says is powering you (e.g. `--model haiku-4-5`).
+It shows on the advice panel footer, and it is the attribution key for the
+advice telemetry — untagged advice events show up in `hst coach-report` as
+`(untagged)` and can't be cost-attributed. Set it once per session via
+`export HS_COACH_MODEL=<model>` if you prefer; the flag wins over the env.
 
 ```bash
-<repo>/hearthstone-tracker/coach_publish.py --json '{
+<repo>/hearthstone-tracker/coach_publish.py --model haiku-4-5 --json '{
   "kind": "turn",
   "turn": 5,
   "headline": "Stabilize the board",
@@ -168,6 +175,12 @@ keep the payload short enough to scan while playing:
   "warning": "Do not send minions face before clearing the 5/3."
 }'
 ```
+
+Advice telemetry (Phase 6a) rides every publish automatically: an `advice`
+event (id, kind, turn, steps, model, applied lessons) lands in the retrieval
+log so `hst coach-report` can measure adoption and outcomes offline. After a
+session, honest 1-line labels help calibrate the adherence proxy:
+`coach_publish.py --advice-feedback '{"turn":8,"followed":true}'`.
 
 Payload mapping:
 - normal turn: `kind=turn`, one short `headline`, the why paragraph in `why`,

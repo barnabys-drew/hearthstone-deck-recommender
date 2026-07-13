@@ -247,6 +247,16 @@ generation, detecting adherence, measuring quality, and improving generation
 — each with its own gate. Split accordingly; 6a→6e is a dependency chain,
 and each sub-phase repeats the lab's core move: instrument before escalating.
 
+**Status 2026-07-12: 6a BUILT; 6b/6c/6d machinery BUILT (proxy v1, awaiting
+real games to calibrate); 6e hook only (`--variant` recorded, no experiments
+until its gate).** The intended loop: play coached sessions on a cheap
+model, run `hst coach-report --session <dir>` + `hst selftest` after, fix
+what the data exposes, repeat. Known v1 proxy limits (stated in
+`hstracker/advice.py`): card-set adherence not line adherence, no
+side-filtering of PLAY/ATTACK blocks, raw-turn mapping assumes display turn
+T ↔ raw {2T-1, 2T}. Expect these to be the first things real games break —
+that's the design.
+
 ### 6a — Advice telemetry (instrument generation) — gate: none, telemetry always comes first
 
 The generation-side mirror of Phase 1. Everything downstream needs it and it
@@ -352,7 +362,18 @@ distinguishing retrieval quality from reasoning quality.
 SOC transfer: prompt changes to a triage agent ship behind an experiment
 flag and win on the adoption/outcome scorecard, never on anecdotes.
 
-## Phase 7 — Continuous verification suite (planned 2026-07-12)
+## Phase 7 — Continuous verification suite 🌱 SEEDED (selftest v1, 2026-07-12)
+
+**Built so far:** `hst selftest` (`hstracker/selftest.py`) — one command,
+one PASS/WARN/FAIL line per layer: feed freshness, overlay-dir writability,
+store health, and phases 0–6 each exercised through their real code paths
+with synthetic inputs (real stores read-only; synthetic round-trips in temp
+files, after a unit test once leaked an advice event into live telemetry —
+`HS_RAG_LOG` now exists so that can't recur). WARN = layer fine but idle
+(feed not running, cache empty); FAIL = broken, exit 1. The play → selftest
+→ fix loop this enables is the point. Still to build from the original plan:
+drift alarms (`rag-report --check`), golden-session regression fixtures, the
+machine-readable health line.
 
 **Entry gate:** more than one phase is live-gated or flipped on. At that
 point "did I break an earlier tier?" stops being answerable by unit tests

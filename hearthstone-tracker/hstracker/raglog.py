@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,15 @@ from typing import Any
 from .config import DEFAULT_DB
 
 RAG_LOG_PATH = DEFAULT_DB.parent / "retrieval_log.jsonl"
+
+
+def default_log_path() -> Path:
+    """HS_RAG_LOG env override, else the real log. The override exists so
+    tests (and ad-hoc experiments) that exercise real CLI entry points never
+    pollute live telemetry — a real advice event from a unit test once
+    landed in the production log."""
+    override = os.environ.get("HS_RAG_LOG")
+    return Path(override) if override else RAG_LOG_PATH
 
 # Cross-process events carry only a timestamp; these windows bound the join.
 APPLIED_JOIN_WINDOW = 2 * 3600  # advice published during a game, before its outcome
@@ -59,7 +69,7 @@ def append_event(event: dict[str, Any], path: Path | None = None) -> bool:
     and coach_publish.py can both append without locking.
     """
     try:
-        path = path or RAG_LOG_PATH
+        path = path or default_log_path()
         event.setdefault("ts", time.time())
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a", encoding="utf-8") as f:
@@ -71,7 +81,7 @@ def append_event(event: dict[str, Any], path: Path | None = None) -> bool:
 
 def read_events(path: Path | None = None) -> list[dict[str, Any]]:
     """Tolerant reader: a torn or corrupt line must not poison the whole log."""
-    path = path or RAG_LOG_PATH
+    path = path or default_log_path()
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except OSError:
@@ -99,7 +109,7 @@ class RagTurnLogger:
     """
 
     def __init__(self, path: Path | None = None) -> None:
-        self.path = path or RAG_LOG_PATH
+        self.path = path or default_log_path()
         self._last_key: tuple | None = None
         self._corpus_game: int | None = None
         self._outcome_games: set[int] = set()
@@ -201,6 +211,7 @@ def join_games(events: list[dict[str, Any]]) -> dict[tuple, dict[str, Any]]:
             "t1_ran_turns": set(), "t1_fired_turns": set(),
             "t2_ran_turns": set(), "t2_fired_turns": set(),
             "tier_fired": {"t0": set(), "t1": set(), "t2": set()},
+            "advice_events": [], "advice_feedback": [],
         })
 
     for ev in events:
@@ -249,9 +260,20 @@ def join_games(events: list[dict[str, Any]]) -> dict[tuple, dict[str, Any]]:
             lid = ev.get("lesson_id")
             if lid:
                 (games[target] if target else unjoined)["ingested_ids"].add(lid)
+        elif kind == "advice":
+            # Phase 6a: advice joins like `applied` — the game in progress.
+            target = next((key for ots, key in outcomes
+                           if ots >= ts and ots - ts <= APPLIED_JOIN_WINDOW), None)
+            (games[target] if target else unjoined)["advice_events"].append(ev)
+        elif kind == "advice_feedback":
+            # Phase 6b: human labels arrive post-game, like `ingest`.
+            target = next((key for ots, key in reversed(outcomes)
+                           if ots <= ts and ts - ots <= INGEST_JOIN_WINDOW), None)
+            (games[target] if target else unjoined)["advice_feedback"].append(ev)
 
     if not any(unjoined[k] for k in ("applied_ids", "ingested_ids", "fired_ids",
-                                     "corpus_ids", "turn_events")) \
+                                     "corpus_ids", "turn_events", "advice_events",
+                                     "advice_feedback")) \
             and unjoined["result"] is None:
         games.pop(("", -1), None)
     return games

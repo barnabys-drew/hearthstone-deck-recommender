@@ -92,6 +92,12 @@ class Advice(BaseModel):
     game_over: str | None = None
     discover: str | None = None
     lessons: list[str] = Field(default_factory=list)
+    # Phase 6a provenance: which model authored the advice (footer display,
+    # cost attribution), a stable id for adherence joins, and the 6e
+    # experiment arm. All optional; older payloads stay valid.
+    model: str | None = None
+    advice_id: str | None = None
+    variant: str | None = None
 
     @field_validator("kind", mode="before")
     @classmethod

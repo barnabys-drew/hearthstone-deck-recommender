@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -48,6 +49,9 @@ class OverlayBridgeTests(unittest.TestCase):
 
     def test_coach_publish_cli_accepts_stdin_and_clear(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
+            # Route the Phase-6a advice event to a temp log — exercising the
+            # real CLI must never pollute live telemetry (it did once).
+            env = {**os.environ, "HS_RAG_LOG": str(Path(tmp) / "rag.jsonl")}
             payload = {"kind": "mulligan", "turn": 0, "mulligan": [{"card": "The Coin", "keep": False, "reason": "not a keep"}]}
             proc = subprocess.run(
                 [sys.executable, str(TRACKER / "coach_publish.py"), "--overlay-dir", tmp],
@@ -55,6 +59,7 @@ class OverlayBridgeTests(unittest.TestCase):
                 text=True,
                 capture_output=True,
                 check=True,
+                env=env,
             )
             self.assertIn("advice.json", proc.stdout)
             advice = json.loads((Path(tmp) / "advice.json").read_text())

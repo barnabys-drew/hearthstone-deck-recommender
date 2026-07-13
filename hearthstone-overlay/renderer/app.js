@@ -97,6 +97,11 @@ function renderAdvice() {
   $('warning').textContent = current.warning || '';
   setHidden($('warning'), !current.warning);
 
+  // Phase 6a: make the authoring model visible (standing constraint) so
+  // behavior differences and credit burn stay attributable per model.
+  const dataPath = $('data-path');
+  if (dataPath) dataPath.textContent = current.model ? `${config.overlayDir} · coach: ${current.model}` : config.overlayDir;
+
   setHidden($('stale'), !isAdviceStale(current, live?.turn, config.staleAdviceSeconds, Date.now() / 1000));
 }
 

@@ -545,6 +545,62 @@ def cmd_rag_maintain(args) -> int:
     return 0
 
 
+def cmd_coach_report(args) -> int:
+    from pathlib import Path as _P
+
+    from .advice import coach_report
+    from .raglog import read_events
+
+    events = read_events(_P(args.log) if args.log else None)
+    if not [ev for ev in events if ev.get("ev") == "advice"]:
+        print("No advice telemetry yet — publish advice via coach_publish.py "
+              "(the coaching skills do this) and re-run.")
+        return 0
+    session = None
+    if args.session:
+        session = _P(args.session)
+        if not session.is_absolute():
+            session = find_log_root(args.logs_root) / args.session
+        if not session.is_dir():
+            print(f"ERROR: no such session directory: {session}", file=sys.stderr)
+            return 2
+    report = coach_report(events, session_dir=session)
+
+    print("## Advice per game" + ("" if session else "  (no --session: adherence skipped)"))
+    print(stats_mod.format_table(report["games"]))
+    print()
+    print("## Latency (turn marker -> advice publish)")
+    print(stats_mod.format_table([report["latency"]]))
+    print()
+    if report["outcomes"]:
+        o = report["outcomes"]
+        print("## Outcomes by adherence (proxy, threshold 0.5)")
+        print(stats_mod.format_table([{
+            "followed": o["followed"], "followed_won": o["followed_won"],
+            "overrode": o["overrode"], "overrode_won": o["overrode_won"]}]))
+        print()
+    if report["calibration"]:
+        c = report["calibration"]
+        print(f"## Proxy calibration: {c['proxy_agrees']}/{c['labels']} "
+              f"human labels agree with the proxy")
+        print()
+    if report["nominations"]:
+        print("## Override wins — lesson nominations (user beat the coach)")
+        print(stats_mod.format_table(report["nominations"]))
+        print()
+    if report["unjoined_advice"]:
+        print(f"({report['unjoined_advice']} advice events outside any game's "
+              f"join window)")
+    return 0
+
+
+def cmd_selftest(args) -> int:
+    from .selftest import format_results, run_checks
+    results = run_checks()
+    print(format_results(results))
+    return 1 if any(r["status"] == "FAIL" for r in results) else 0
+
+
 def main(argv=None) -> int:
     logging.disable(logging.WARNING)  # hslog is chatty about known log quirks
 
@@ -601,6 +657,15 @@ def main(argv=None) -> int:
     p = sub.add_parser("rag-embed", help="Build/refresh the Tier-2 lesson embedding cache (fastembed, local)")
     p.add_argument("--status", action="store_true", help="Show cache coverage without embedding anything")
     p.set_defaults(func=cmd_rag_embed)
+
+    p = sub.add_parser("coach-report", help="Phase 6: advice volume, latency, adherence proxy, outcome splits, override-win nominations")
+    p.add_argument("--session", help="Session dir name or path — enables the adherence proxy (needs the Power.log)")
+    p.add_argument("--logs-root", help="Hearthstone Logs directory (auto-detected by default)")
+    p.add_argument("--log", help="Retrieval log path (default: retrieval_log.jsonl next to the DB)")
+    p.set_defaults(func=cmd_coach_report)
+
+    p = sub.add_parser("selftest", help="Phase 7: PASS/WARN/FAIL every layer of the running stack (read-only, safe mid-session)")
+    p.set_defaults(func=cmd_selftest)
 
     p = sub.add_parser("rag-maintain", help="KB hygiene: stamp per-lesson stats, merge near-dupes, archive dead knowledge (dry-run by default)")
     p.add_argument("--apply", action="store_true", help="Write the store/archive; without this, report only")

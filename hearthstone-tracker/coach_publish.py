@@ -71,7 +71,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--lethal-math", help="Marks the payload as lethal and displays this arithmetic")
     parser.add_argument("--game-over", choices=["WON", "LOST", "TIED", "UNKNOWN"])
     parser.add_argument("--mulligan-json", help="JSON array of {card, keep, reason} rows")
+    parser.add_argument("--model", default=os.environ.get("HS_COACH_MODEL"),
+                        help="Model authoring this advice (Phase 6a attribution; the coaching skills pass the model named in their system prompt). Env fallback: HS_COACH_MODEL")
+    parser.add_argument("--variant", help="Experiment arm label for generation A/B (Phase 6e); recorded on the advice event")
+    parser.add_argument("--advice-feedback", help="Post-game human label: JSON like '{\"turn\":8,\"followed\":true,\"note\":\"...\"}' — calibrates the 6b adherence proxy")
     args = parser.parse_args(argv)
+
+    if args.advice_feedback:
+        from hstracker.raglog import append_event
+        fb = json.loads(args.advice_feedback)
+        append_event({"ev": "advice_feedback", "turn": fb.get("turn"),
+                      "advice_id": fb.get("advice_id"),
+                      "followed": bool(fb.get("followed")),
+                      "note": fb.get("note")})
+        if not (args.json or args.headline or args.step or args.mulligan_json
+                or args.discover or args.clear or args.applied_lesson
+                or args.lesson_record):
+            print("feedback recorded")
+            return 0
 
     if args.lesson_record:
         from hstracker.lessons import append_lesson
@@ -94,15 +111,56 @@ def main(argv: list[str] | None = None) -> int:
     elif args.discover and not (args.json or args.headline or args.step or args.mulligan_json):
         # Mid-turn discover pick: merge into the advice card already on screen.
         path = write_discover(args.discover, args.overlay_dir)
+        _log_advice_event({"kind": "discover", "discover": args.discover},
+                          args)
     else:
         if args.json:
             payload = json.loads(args.json)
         else:
             stdin = "" if sys.stdin.isatty() else sys.stdin.read().strip()
             payload = json.loads(stdin) if stdin else _payload_from_args(args)
+        if args.model and "model" not in payload:
+            payload["model"] = args.model
+        if args.variant and "variant" not in payload:
+            payload["variant"] = args.variant
+        payload["advice_id"] = _advice_id(payload)
         path = write_advice(payload, args.overlay_dir)
+        _log_advice_event(payload, args)
     print(path)
     return 0
+
+
+def _advice_id(payload: dict) -> str:
+    """Stable 12-hex id for one published advice (Phase 6a join key)."""
+    import hashlib
+    import time
+    basis = json.dumps(payload, sort_keys=True, default=str) + str(time.time())
+    return hashlib.sha1(basis.encode("utf-8")).hexdigest()[:12]
+
+
+def _log_advice_event(payload: dict, args: argparse.Namespace) -> None:
+    """Phase 6a: one `advice` event per publish, into the retrieval log.
+    Best-effort — telemetry must never block the overlay write."""
+    try:
+        from hstracker.raglog import append_event
+        mull = payload.get("mulligan") or []
+        append_event({
+            "ev": "advice",
+            "advice_id": payload.get("advice_id") or _advice_id(payload),
+            "kind": payload.get("kind") or args.kind,
+            "turn": payload.get("turn", args.turn),
+            "headline": payload.get("headline"),
+            "steps": payload.get("steps") or [],
+            "mulligan_cards": [r.get("card") for r in mull if isinstance(r, dict)],
+            "warning_present": bool(payload.get("warning")),
+            "discover": payload.get("discover"),
+            "game_over": payload.get("game_over"),
+            "applied_lessons": list(args.applied_lesson or []),
+            "model": payload.get("model") or args.model,
+            "variant": payload.get("variant") or args.variant,
+        })
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

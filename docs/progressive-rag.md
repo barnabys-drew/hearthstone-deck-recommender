@@ -188,16 +188,44 @@ dedupe.
 SOC transfer: disposition dedupe, stale-IOC expiry, promoting recurring
 false-positive patterns into suppression rules — with the evidence attached.
 
-## Phase 5 — Context budgeting (progressive assembly)
+## Phase 5 — Context budgeting (progressive assembly) 🧪 LAB-BUILT (2026-07-12), live-gated
 
 **Entry gate:** retrieved context regularly exceeds what the decision needs
 (more than the cap competes for the slot).
+*Gate NOT satisfied at build time — measured honestly first: across 173
+replayed your-turns only 2 (~1%) had more candidates than the cap
+(distribution: 0×35, 1×64, 2×56, 3×16, 4×2). Built lab-gated on the
+Phase-2/3 precedent; the RANKER half earns its keep today (Phase-4 stats
+now say which lessons actually correlate with wins — "most conditions,
+then newest" ignores that), while the BUDGET half is machinery awaiting
+evidence.*
 
-Build:
-- An explicit token budget for retrieved context per decision; rank candidates
-  by `specificity × recency × confidence` (Phase-4 stats); truncate to budget.
-- A/B ranking functions through the Phase-1 replay harness — measure whether
-  more context actually improves outcomes, or just costs more.
+Built (`hstracker/budget.py`):
+- Explicit per-decision context budget in characters (~4 chars/token;
+  default 600 ≈ 150 tokens, `HS_RAG_BUDGET_CHARS` override). Tiers
+  over-fetch (cap 6) and `assemble()` takes best-first until the budget or
+  hard cap (5) is hit; the top candidate is always kept even over budget —
+  zero context is worse than slightly too much.
+- Ranking = `specificity × tier-trust × recency × confidence`: trigger
+  condition count, t0 > t1 > t2, ~60-day recency decay (undated = 180
+  days), and Laplace-smoothed win-rate-when-fired boosted by coach acks
+  from the Phase-4 stats. Deterministic; ties break on lesson id.
+- A/B through the replay harness: `rag-replay --budget --ranker
+  evidence|legacy` (legacy = the pre-Phase-5 ordering, kept callable).
+  First real A/B on `Hearthstone_2026_07_12_15_31_05`: the rankers genuinely
+  disagree — evidence puts the 3-times-acked Coin lesson above the
+  never-acked Medivh one where legacy does the reverse, and the one 4-way
+  turn drops 2 lessons to fit budget.
+- Telemetry: match events carry `context: {chars, dropped}` when budgeting
+  ran; `rag-report` grows a "Context budget" section (avg/max chars,
+  lessons dropped) — the measurement that will justify or kill a live flip.
+- Live loop gated by `HS_RAG_BUDGET=1` (`HS_RAG_RANKER` picks the ranking);
+  the default replay path is byte-identical to pre-Phase-5.
+
+**Acceptance evidence required to flip the live default ON:** the gate
+itself — telemetry showing candidates regularly exceeding the cap (store
+growth will drive this) — plus an A/B replay showing the evidence ranker's
+kept-set correlating with wins at least as well as legacy's.
 
 Teaches: context economics, ranking under a budget, measuring the marginal
 value of context.

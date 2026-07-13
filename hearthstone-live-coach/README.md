@@ -164,7 +164,7 @@ Not quite lethal, but close — one more card draw and you're there.
 1. Fireball their largest minion (8 damage)
 2. Fireball face (8 damage) — drops them to 16
 3. Swing with your 4/3 (4 damage)
-4. Pass with Firewall in hand for next turn
+4. End Turn with Firewall in hand for next turn
 
 You've dealt 12, need 6 more. If you top-deck a Bolt, you win next turn. If 
 not, their top-deck matters.

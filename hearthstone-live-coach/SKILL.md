@@ -139,6 +139,12 @@ same mistake doesn't repeat game after game.
    override) adds card rules text and flags; read it only when you need those.
    When you do read it, always re-read fresh — it is rewritten continuously.
 
+## Terminology: Always Use "End Turn" Not "Pass"
+
+When advising the user to end their turn with no more plays, always write **"End Turn"** — never "Pass". This matches the button in Hearthstone's UI and is clearer for in-game advice.
+
+Example: `4. End Turn with Fireball in hand for next turn` (not "Pass")
+
 ## Overlay publishing (REQUIRED when the overlay is running)
 
 If the Hearthstone Coach Overlay is running, publishing is NOT optional: every

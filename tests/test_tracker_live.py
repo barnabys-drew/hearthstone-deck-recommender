@@ -29,6 +29,35 @@ class CardTextTests(unittest.TestCase):
         self.assertIsNone(card_text({}))
         self.assertIsNone(card_text({"text": "<i></i>"}))
 
+    def test_at_joined_variants_take_first_segment(self) -> None:
+        """Live-session regression (2026-07-13): Broodwatcher's snapshot text
+        showed the same Battlecry three times concatenated with "@". Cards
+        with an in-hand progress counter store several complete "@"-joined
+        text variants (in-progress/ready/static); we don't track the live
+        counter needed to pick the right one, so take the first — it's
+        always the complete, state-independent phrasing."""
+        from hstracker.live import card_text
+
+        card = {"text": ("[x]<b>Battlecry:</b> Get two 3/3 Whelps with "
+                          "<b>Taunt</b>. If you spent 8 Mana while holding "
+                          "this, summon them. <i>({0} left!)</i>"
+                          "@[x]<b>Battlecry:</b> ...ready variant..."
+                          "@[x]<b>Battlecry:</b> ...static variant...")}
+        self.assertEqual(
+            card_text(card),
+            "Battlecry: Get two 3/3 Whelps with Taunt. If you spent 8 Mana "
+            "while holding this, summon them. (X left!)")
+
+    def test_unfilled_numbered_placeholder_becomes_x(self) -> None:
+        """Live-session regression (2026-07-13): Scorching Ravager's snapshot
+        text was "Battlecry: Herald {0}. Give the Soldier Rush." — a raw,
+        never-filled HearthstoneJSON template placeholder leaking straight
+        into the coach's advice input."""
+        from hstracker.live import card_text
+
+        card = {"text": "<b>Battlecry:</b> <b>Herald</b> {0}. Give the Soldier <b>Rush</b>."}
+        self.assertEqual(card_text(card), "Battlecry: Herald X. Give the Soldier Rush.")
+
 
 @unittest.skipUnless(HAS_HSLOG, "hslog not installed (pip install -r hearthstone-tracker/requirements.txt)")
 class SnapshotDeltaTests(unittest.TestCase):

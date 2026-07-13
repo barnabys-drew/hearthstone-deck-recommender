@@ -387,6 +387,16 @@ Work through this checklist before writing anything:
   while damaged" — zero draw. **Always read card text from the snapshot or
   screenshot before advising.** This is the #1 failure mode. Don't assume you
   know what a card does.
+- **Killing a taunt minion "to clear the taunt" without checking whether ITS
+  OWN deathrattle re-creates one.** Real miss (2026-07-13): advised Death
+  Strike on Broll, Blood Fighter specifically to remove its taunt and open a
+  lethal swing — but Broll's own text reads "Taunt Deathrattle: Summon a
+  Blood Fighter from your hand. Give it +5/+5 and Taunt." Killing it
+  immediately resummoned a bigger taunt blocker, voiding the whole race plan.
+  Rule 9 (deathrattle caution) says to factor deathrattle payoffs into
+  trades — this is the specific trap where the payoff is a NEW taunt body:
+  before recommending "kill X to remove the taunt blocker," read X's own
+  deathrattle text and confirm it doesn't hand the opponent another one.
 - **Advising AoE/damage-to-all without checking minion HP.** Advised Searing
   Fissure (1 damage to all minions) without noticing their own Vendor was at
   2/1 (1 HP left) — the AoE would kill their own minion. **Read minion HP and

@@ -47,14 +47,25 @@ def _entity_flags(entity: Any) -> list[str]:
 
 
 _TEXT_MARKUP_RE = re.compile(r"<[^>]+>|\[x\]")
+_PLACEHOLDER_RE = re.compile(r"\{\d+\}")
 
 
 def card_text(card: dict) -> str | None:
-    """Rules text cleaned of HearthstoneJSON markup ($/# damage markers, tags)."""
+    """Rules text cleaned of HearthstoneJSON markup ($/# damage markers, tags).
+
+    Cards with a tracked in-hand counter (Broodwatcher, Mordresh Fire Eye, ...)
+    store several complete "@"-joined text variants (in-progress/ready/static);
+    we don't track the live counter needed to pick the right one, so take the
+    first — it's always the complete, state-independent phrasing. Genuinely
+    unfilled {0}/{1} template placeholders (Herald tribe, buff amounts) become
+    "X" rather than leaking raw template syntax to the coach.
+    """
     text = card.get("text")
     if not text:
         return None
+    text = text.split("@")[0]
     text = _TEXT_MARKUP_RE.sub("", text).replace("$", "").replace("#", "")
+    text = _PLACEHOLDER_RE.sub("X", text)
     return " ".join(text.split()) or None
 
 

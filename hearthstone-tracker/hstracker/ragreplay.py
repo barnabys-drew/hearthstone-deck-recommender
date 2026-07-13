@@ -69,7 +69,8 @@ def iter_turn_buffers(lines: Iterator[str]) -> Iterator[tuple[int, int | None, l
 
 def replay_session(session_dir: Path, lessons: list[Lesson], resolver, *,
                    tiers: tuple[str, ...] = ("t0", "t1"),
-                   candidates: bool = False) -> list[dict[str, Any]]:
+                   candidates: bool = False, budget: bool = False,
+                   ranker: str | None = None) -> list[dict[str, Any]]:
     """Replay every game in a session dir against the given store.
 
     Returns corpus/match/outcome events in the retrieval-log schema, tagged
@@ -134,7 +135,13 @@ def replay_session(session_dir: Path, lessons: list[Lesson], resolver, *,
             continue
         seen_turns.add(key)
         results, tiers_ran = retrieve_lessons(snap, lessons, index=index,
-                                              t1_enabled=t1_on, t2=t2)
+                                              t1_enabled=t1_on, t2=t2,
+                                              cap=6 if budget else 3)
+        budget_info = None
+        if budget and results:
+            from .budget import assemble
+            results, dropped, spent = assemble(results, ranker=ranker)
+            budget_info = {"chars": spent, "dropped": dropped}
         opp = snap.get("opp") or {}
         event = {
             "ev": "match", "session": session, "game_no": game_no,
@@ -145,6 +152,8 @@ def replay_session(session_dir: Path, lessons: list[Lesson], resolver, *,
             "corpus_count": len(lessons),
             "replay": True,
         }
+        if budget_info:
+            event["context"] = budget_info
         if candidates and "t1" in tiers_ran:
             event["t1_candidates"] = t1_candidates(snap, index)
         if candidates and t2 is not None and "t2" in tiers_ran:

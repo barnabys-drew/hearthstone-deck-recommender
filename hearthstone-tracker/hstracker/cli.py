@@ -146,6 +146,7 @@ def cmd_live(args) -> int:
         LiveGameTail, format_snapshot, write_snapshot_json,
         snapshot_delta, pending_discovers,
     )
+    from .budget import assemble, budget_enabled
     from .embed import T2Retriever, t2_live_enabled
     from .lessons import StoreWatcher, mirror_store
     from .lexical import retrieve_lessons, t1_live_enabled
@@ -219,9 +220,16 @@ def cmd_live(args) -> int:
                 # Tier 1 (lexical fallback) is lab-gated: HS_RAG_T1=1 opts in.
                 if t2 is not None:
                     t2.prime(snap, tail.game_no)  # once per game, not per turn
+                # Phase 5 (lab-gated, HS_RAG_BUDGET=1): over-fetch, then let
+                # the evidence ranker cut the list to the context budget.
+                budgeting = budget_enabled()
                 results, tiers_ran = retrieve_lessons(
                     snap, lesson_store.lessons(), t1_enabled=t1_live_enabled(),
-                    t2=t2)
+                    t2=t2, cap=6 if budgeting else 3)
+                budget_info = None
+                if budgeting and results:
+                    results, dropped, spent = assemble(results)
+                    budget_info = {"chars": spent, "dropped": dropped}
                 if results:
                     snap["lessons_matched"] = [
                         {"lesson": r["lesson"].lesson, "cost": r["lesson"].cost,
@@ -230,7 +238,7 @@ def cmd_live(args) -> int:
                     ]
                 rag.on_snapshot(snap, results, lesson_store.lessons(),
                                 session=current_dir.name, game_no=tail.game_no,
-                                tiers_ran=tiers_ran)
+                                tiers_ran=tiers_ran, budget_info=budget_info)
                 write_snapshot_json(snap, json_file)
                 if overlay_dir:
                     try:
@@ -401,6 +409,17 @@ def cmd_rag_report(args) -> int:
         ("Precision proxy" if has_applied
          else "Precision proxy (no applied events — proxy is fired∧won)", precision),
     ]
+    budgeted = [ev for ev in events
+                if ev.get("ev") == "match" and ev.get("context")]
+    if budgeted:
+        chars = [ev["context"].get("chars", 0) for ev in budgeted]
+        drops = sum(len(ev["context"].get("dropped") or []) for ev in budgeted)
+        sections.append(("Context budget (Phase 5)", [{
+            "budgeted_turns": len(budgeted),
+            "avg_chars": round(sum(chars) / len(chars)),
+            "max_chars": max(chars),
+            "lessons_dropped": drops,
+        }]))
     for title, rows in sections:
         print(f"## {title}")
         print(stats_mod.format_table(rows))
@@ -443,7 +462,8 @@ def cmd_rag_replay(args) -> int:
     else:
         tiers = ("t0", "t1")
     events = replay_session(session, store, resolver, tiers=tiers,
-                            candidates=args.candidates)
+                            candidates=args.candidates, budget=args.budget,
+                            ranker=args.ranker)
 
     if args.json:
         for ev in events:
@@ -574,6 +594,8 @@ def main(argv=None) -> int:
     p.add_argument("--tier0-only", action="store_true", help="A/B baseline: skip the lexical tier")
     p.add_argument("--t2", action="store_true", help="Also run the semantic tier (needs `hst rag-embed` first; opt-in so existing replay diffs stay stable)")
     p.add_argument("--candidates", action="store_true", help="Include unthresholded t1/t2 candidate scores in events (threshold tuning)")
+    p.add_argument("--budget", action="store_true", help="Phase-5 A/B: over-fetch, rank, and cut to the context budget")
+    p.add_argument("--ranker", choices=["evidence", "legacy"], default=None, help="Ranking function for --budget (default: evidence, or HS_RAG_RANKER)")
     p.set_defaults(func=cmd_rag_replay)
 
     p = sub.add_parser("rag-embed", help="Build/refresh the Tier-2 lesson embedding cache (fastembed, local)")

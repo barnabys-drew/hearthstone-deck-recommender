@@ -107,9 +107,12 @@ class RagTurnLogger:
 
     def on_snapshot(self, snap: dict[str, Any], matched: list, corpus: list, *,
                     session: str, game_no: int,
-                    tiers_ran: list[str] | None = None) -> None:
+                    tiers_ran: list[str] | None = None,
+                    budget_info: dict[str, Any] | None = None) -> None:
         """`matched` accepts bare Lessons (tier t0, back-compat) or annotated
-        dicts {lesson, tier, score} from lexical.retrieve_lessons."""
+        dicts {lesson, tier, score} from lexical.retrieve_lessons.
+        `budget_info` ({chars, dropped}) is attached when the Phase-5
+        budgeter ran, so context economics can be measured offline."""
         try:
             results = [m if isinstance(m, dict)
                        else {"lesson": m, "tier": "t0", "score": None}
@@ -141,14 +144,17 @@ class RagTurnLogger:
                 return
             self._last_key = key
             opp = snap.get("opp") or {}
-            append_event({
+            event = {
                 "ev": "match", "session": session, "game_no": game_no,
                 "turn": snap.get("turn"), "raw_turn": snap.get("raw_turn"),
                 "tiers": list(tiers_ran or ["t0"]),
                 "matched": [match_entry(r) for r in results],
                 "opp_class": opp.get("class"),
                 "corpus_count": len(corpus),
-            }, self.path)
+            }
+            if budget_info:
+                event["context"] = budget_info
+            append_event(event, self.path)
         except Exception:
             pass  # telemetry is display-only; never break the live loop
 

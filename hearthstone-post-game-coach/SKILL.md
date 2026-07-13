@@ -67,6 +67,23 @@ Teach one specific lesson from this game:
 - **Mulligan:** "You kept Shield Block against Burn Mage; against Mage you want early removal. Next game, mulligan it away."
 - **Mana efficiency:** "You played 1 card per turn for 3 turns. Meanwhile they dumped their hand. You were outpaced."
 
+### 5. KB hygiene (Phase 4 — end of a coaching session)
+After the last game of a session (not after every game), run the lesson-store
+maintenance pass and act on its report:
+
+```bash
+<repo>/hearthstone-tracker/hst rag-maintain          # dry run, always safe
+```
+
+- If the near-duplicate or decay tables list rows and they look right,
+  re-run with `--apply` (merges/archives them and stamps per-lesson stats
+  onto the records — provenance travels with the knowledge).
+- The **Headline candidates** table is your input for synthesis: if a
+  non-headline lesson keeps firing across games with wins, write a fresh
+  cross-game headline (`coach_publish.py --lesson-record` with
+  `"headline": true`) that folds it in. Composing that prose is THIS skill's
+  job — the deterministic pass only nominates.
+
 ## Input Data
 
 The skill accesses:

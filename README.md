@@ -57,7 +57,7 @@ The skills:
 - **`hearthstone-deck-builder`** — build or verify a Hearthstone deck and produce a clipboard-ready import deck code.
 - **`hearthstone-deck-recommender`** — compare your collection against current Standard meta decks and rank which decks are cheapest/easiest to complete.
 - **`hearthstone-live-coach`** — coach you turn by turn during a real game: the agent tails the game's own logs via the tracker's `hst live` feed and answers "what's my play?" with the actual hand, boards, and lethal math in front of it.
-- **`hearthstone-overlay`** — start the native in-game overlay: four always-on-top panels (turn advice, HDT-style deck tracker, opponent tracker, accumulated coaching lessons) that render the live coach's advice next to the game.
+- **`hearthstone-overlay`** — start the native in-game overlay: five always-on-top panels (turn advice, HDT-style deck tracker, opponent tracker, accumulated coaching lessons, deck stats) that render the live coach's advice next to the game.
 
 Also in this repo:
 

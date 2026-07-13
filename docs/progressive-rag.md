@@ -150,17 +150,37 @@ ingest; only the fraction of alerts structured retrieval can't resolve ever
 touches the semantic tier. At 10k alerts/day this is the difference between
 a rounding error and a real bill.
 
-## Phase 4 — Consolidation + decay (KB hygiene)
+## Phase 4 — Consolidation + decay (KB hygiene) ✅ BUILT (2026-07-12)
 
 **Entry gate:** the store is big enough to have duplicates and dead weight
 (Phase-1 report shows never-fired records or near-identical lessons).
+*Gate satisfied: the day's report showed 10 of 17 lessons never fired.*
 
-Build:
-- Post-game maintenance pass: merge near-duplicate lessons (lexical
-  similarity), archive records that haven't fired in N games (decay),
-  promote repeat-firers toward the headline.
-- Per-lesson stats on the record itself: `times_fired`, `last_fired`,
-  win correlation — provenance and confidence travel with the knowledge.
+Built (`hstracker/hygiene.py`, `hst rag-maintain` — **dry-run by default**,
+`--apply` to write):
+- Per-lesson stats stamped onto the record itself (`Lesson.stats`:
+  `times_fired`, `games_fired`, `games_in_corpus`, `won_when_fired`,
+  `applied`, `last_fired`, `updated`) — computed from the retrieval log at
+  maintenance time, never on the hot path; replay-tagged events are excluded
+  so rehearsing history can't inflate real counts. Provenance now travels
+  with the knowledge through every mirror.
+- Near-duplicate merge: Jaccard over the same token stream Tier 1 indexes
+  (threshold 0.6, `--dedupe-threshold`); records pinned to *different*
+  opponent classes never merge (same words, different knowledge); the
+  survivor is picked deterministically (more trigger conditions → newer →
+  titled → smaller id). The loser is **archived, not deleted** —
+  `lesson_archive.json` keeps every demoted record with its reason.
+- Decay: unfired (any tier) across ≥15 telemetry games (`--decay-games`)
+  → archived. Headlines are exempt from both merge and decay. First real
+  run correctly archived nothing: the corpus is 7 games old — conservatism
+  is the feature.
+- Headline candidates are *reported, never auto-applied*: composing headline
+  prose is the post-game coach's LLM job at a boundary; the deterministic
+  pass only nominates (top repeat-firers with wins). The post-game skill now
+  documents the end-of-session flow: dry-run → eyeball → `--apply` →
+  synthesize a new headline from the candidates table.
+- First real `--apply`: 17 lessons stamped, 0 archived; top nominee
+  "Coin only when it converts" (fired 6/7 games, 3 wins, 3 acks).
 
 Teaches: memory consolidation, TTL/decay, provenance and confidence scoring,
 dedupe.

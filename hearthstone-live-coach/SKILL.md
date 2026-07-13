@@ -288,7 +288,17 @@ Work through this checklist before writing anything:
      to a full face swing, survival outranks everything else this turn.
    - Outgoing: your board attack + weapon + burn from hand. Check lethal every
      turn from about turn 5 on.
-4. **Respect the flags.** `taunt` must be attacked first (spells ignore it);
+4. **Respect the flags.** `taunt` must be attacked first (spells ignore it) —
+   **list EVERY taunt-flagged minion currently on the enemy board before
+   totaling face damage in any lethal/race plan.** A plan that clears one
+   taunt and then sends "remaining attackers face" is only valid if that was
+   the ONLY taunt; two simultaneous taunts need two attackers spent on them,
+   not one (real-game miss: opponent had both Stonehill Defender AND a
+   Voidwalker — spawned earlier by Voidlord's death — as Taunt at the same
+   time; the plan cleared only Stonehill and counted the Voidwalker's blocked
+   attacker as face damage anyway, so the declared lethal total was never
+   actually legal). Re-scan the full board list for the `taunt` flag as a
+   discrete step, not from memory of "the taunt minion" singular;
    `divine shield` absorbs one hit — pop it with the cheapest ping before real
    removal; `damaged` marks legal targets for damaged-only effects;
    `exhausted` minions can't attack this turn (newly played or already acted);

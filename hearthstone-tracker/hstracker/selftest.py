@@ -145,6 +145,102 @@ def check_p6_advice() -> CheckResult:
     return _result("p6 advice telemetry", "FAIL", "advice event round-trip failed")
 
 
+def check_kb_capture() -> CheckResult:
+    """The lessons engine's ONE JOB is turning losses into knowledge. Real
+    miss this check exists for: 17 games / 12 losses on one deck with zero
+    lessons recorded, while the panel showed another deck's tips. Flags
+    (a) recent losses that produced no lesson record at all, and (b) decks
+    with repeated losses but no deck-tagged lesson in the store."""
+    from .lessons import load_store
+    from .raglog import join_games, read_events
+
+    games = join_games(read_events())
+    real = [g for k, g in sorted(games.items()) if k != ("", -1) and g["result"]]
+    if not real:
+        return _result("kb capture", "WARN", "no finished games in telemetry yet")
+    losses = [g for g in real if g["result"] == "LOST"]
+    uncaptured = sum(1 for g in losses if not g["ingested_ids"])
+
+    store = load_store()
+    store_decks = {(rec.deck or "").strip().lower() for rec in store if rec.deck}
+    deck_losses: dict[str, int] = {}
+    for g in losses:
+        deck = (g["deck"] or "").strip()
+        if deck:
+            deck_losses[deck] = deck_losses.get(deck, 0) + 1
+    gap_decks = [f"{d} ({n} losses)" for d, n in sorted(deck_losses.items())
+                 if n >= 2 and d.lower() not in store_decks]
+
+    problems = []
+    if losses and uncaptured == len(losses):
+        problems.append(f"{uncaptured}/{len(losses)} losses produced NO lesson record")
+    elif uncaptured:
+        problems.append(f"{uncaptured}/{len(losses)} losses without a lesson record")
+    if gap_decks:
+        problems.append("decks losing with zero deck-tagged lessons: "
+                        + ", ".join(gap_decks))
+    if problems:
+        return _result("kb capture", "WARN", "; ".join(problems))
+    return _result("kb capture", "PASS",
+                   f"{len(losses)} losses, all captured; no deck coverage gaps")
+
+
+def check_renderer_logic() -> CheckResult:
+    """Run the overlay's node:test suite (includes the deck-filter regression
+    test) — the renderer logic is part of the running system too."""
+    import subprocess
+
+    test_dir = Path(__file__).resolve().parents[2] / "hearthstone-overlay" / "test"
+    if not test_dir.is_dir():
+        return _result("renderer logic", "WARN", f"no test dir at {test_dir}")
+    try:
+        proc = subprocess.run(["node", "--test", str(test_dir)],
+                              capture_output=True, text=True, timeout=60)
+    except FileNotFoundError:
+        return _result("renderer logic", "WARN",
+                       "node not installed in WSL — renderer tests skipped")
+    except subprocess.TimeoutExpired:
+        return _result("renderer logic", "FAIL", "node --test timed out")
+    if proc.returncode == 0:
+        passed = next((line.split()[-1] for line in proc.stdout.splitlines()
+                       if line.startswith("# pass")), "?")
+        return _result("renderer logic", "PASS", f"node --test: {passed} tests pass")
+    tail = (proc.stdout or proc.stderr).strip().splitlines()[-1:]
+    return _result("renderer logic", "FAIL", f"node --test failed: {' '.join(tail)}")
+
+
+def check_store_mirror() -> CheckResult:
+    """The lessons panel reads the MIRRORED store in the overlay folder — a
+    stale mirror silently shows old knowledge no matter how good the real
+    store is."""
+    import json
+
+    from .lessons import STORE_PATH, load_store
+    from .overlay import resolve_overlay_dir
+    from .raglog import lesson_id
+
+    directory = resolve_overlay_dir(None)
+    if not directory:
+        return _result("store mirror", "WARN", "overlay dir not resolvable")
+    mirror_path = Path(directory) / "lesson_store.json"
+    try:
+        raw = json.loads(mirror_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return _result("store mirror", "WARN",
+                       f"no readable mirror at {mirror_path} — publishes refresh it")
+    mirror_ids = {lesson_id(item.get("lesson", ""))
+                  for item in raw.get("lessons", []) if item.get("lesson")}
+    store_ids = {lesson_id(rec.lesson) for rec in load_store()}
+    if mirror_ids == store_ids:
+        return _result("store mirror", "PASS",
+                       f"mirror in sync ({len(store_ids)} lessons)")
+    missing = len(store_ids - mirror_ids)
+    extra = len(mirror_ids - store_ids)
+    return _result("store mirror", "FAIL",
+                   f"mirror out of sync with {STORE_PATH.name}: "
+                   f"{missing} missing, {extra} stale — republish or mirror_store()")
+
+
 def check_feed() -> CheckResult:
     from .config import DEFAULT_DB
     live_json = DEFAULT_DB.parent / "live.json"
@@ -185,9 +281,10 @@ def check_store() -> CheckResult:
 
 
 ALL_CHECKS = [
-    check_feed, check_overlay_dir, check_store,
+    check_feed, check_overlay_dir, check_store, check_store_mirror,
     check_p0_triggers, check_p1_telemetry, check_p2_lexical,
     check_p3_embeddings, check_p4_hygiene, check_p5_budget, check_p6_advice,
+    check_kb_capture, check_renderer_logic,
 ]
 
 

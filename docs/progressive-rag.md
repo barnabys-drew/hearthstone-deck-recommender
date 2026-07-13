@@ -375,6 +375,19 @@ files, after a unit test once leaked an advice event into live telemetry —
 drift alarms (`rag-report --check`), golden-session regression fixtures, the
 machine-readable health line.
 
+Checks added from real play-loop misses (2026-07-13) — each one encodes a
+failure that actually happened:
+- **kb capture** — losses that produced no lesson record, and decks with
+  repeated losses but zero deck-tagged lessons in the store (real miss: 17
+  games / 12 losses on Two Bit Rogue, nothing recorded, while the panel
+  showed Aya Rogue tips).
+- **renderer logic** — runs the overlay's `node --test` suite from selftest
+  (includes the deck-filter regression test), so the JS layer is checked by
+  the same command as everything else.
+- **store mirror** — the lessons panel reads the overlay-folder mirror, not
+  the real store; a stale mirror silently serves old knowledge. FAIL on
+  divergence.
+
 **Entry gate:** more than one phase is live-gated or flipped on. At that
 point "did I break an earlier tier?" stops being answerable by unit tests
 alone — the stack needs tools that test all six parts against the *running*

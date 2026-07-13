@@ -21,6 +21,28 @@ test('panelLessons: one headline + two points, deck tips preferred, matched excl
   assert.deepEqual(panelLessons(null), { headline: null, points: [] });
 });
 
+test('panelLessons: tips filtered by the deck being played (regression)', () => {
+  // Real bug 2026-07-13: Aya Rogue tips filled the panel through a 17-game
+  // Two Bit Rogue session because deck-tagged tips outranked everything
+  // regardless of which deck was live.
+  const records = [
+    { lesson: 'aya tip', deck: 'Aya Rogue' },
+    { lesson: 'two bit tip', deck: 'Two Bit Rogue' },
+    { lesson: 'general tip' },
+  ];
+  const playing = panelLessons(records, { deck: 'Two Bit Rogue' });
+  assert.deepEqual(playing.points.map((r) => r.lesson), ['two bit tip', 'general tip'],
+    'current-deck tip first, then general; other decks never shown');
+  const caseInsensitive = panelLessons(records, { deck: 'two bit rogue' });
+  assert.deepEqual(caseInsensitive.points.map((r) => r.lesson), ['two bit tip', 'general tip']);
+  const noMatch = panelLessons(records, { deck: 'Burn Warrior' });
+  assert.deepEqual(noMatch.points.map((r) => r.lesson), ['general tip'],
+    'no current-deck tips: general only, other decks still hidden');
+  const unknownDeck = panelLessons(records, { deck: null });
+  assert.deepEqual(unknownDeck.points.map((r) => r.lesson), ['aya tip', 'two bit tip'],
+    'deck unknown: old behavior (tagged tips first) so nothing vanishes');
+});
+
 test('lessonLabel: prefers title, clips long text', () => {
   assert.equal(lessonLabel({ lesson: 'long text here', title: 'Short' }), 'Short');
   const clipped = lessonLabel({ lesson: 'x'.repeat(100) }, 20);

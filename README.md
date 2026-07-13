@@ -34,15 +34,13 @@ cards and dust. Two problems:
 
 ## Screenshots
 
-| Deck tracker + deck stats | Coach advice, lessons, & opponent tracker |
+| Deck tracker + deck stats | AI coach mulligan advice |
 |---------------------------|-----------------------------------|
-| ![Deck tracker and stats panels](docs/screenshots/deck-tracker-stats.png) | ![Coach, lessons and opponent panels](docs/screenshots/coach-lessons-opponent.png) |
+| ![Deck tracker and stats panels](docs/screenshots/deck-tracker-stats.png) | ![AI coach mulligan recommendations](docs/screenshots/coach-mulligan-advice.png) |
 
 **Left:** The HDT-style deck tracker mid-game — your original deck list with draw percentages at the top, plus every generated/shuffled card the tracker detected from the log. Below that, the per-deck stats panel showing your historical win rates against each matchup.
 
-**Right:** The live coach's advice (top panel, turn-by-turn suggestions with hand/board/lethal context), the accumulating coaching lessons panel (middle, cross-game patterns and situational tips learned from your play), and the opponent tracker (bottom, every card they've played or revealed). The opponent's hand shows only the hidden-card count the game client itself exposes — no cheating.
-
-> ⚠️ **Note:** Coaching screenshots are stale and need updating to show live AI suggestions in action. The UI has evolved; when you set up a fresh coaching session, the advice card will show actual turn-by-turn guidance rather than "offline" status.
+**Right:** The AI coach analyzing your mulligan with turn-by-turn card recommendations. Each card shows a KEEP (green) or TOSS (red) decision with reasoning: "Agent of the Old Ones — KEEP, Turn 1 tempo generates Coin for Whip scaling" or "Eventuality — TOSS, Too slow for early tempo race." The coach sees your full hand, knows the matchup (opponent shown top-right), and explains each decision in real time.
 
 ## Two ways to use it
 

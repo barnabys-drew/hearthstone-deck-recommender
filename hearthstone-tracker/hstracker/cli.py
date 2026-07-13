@@ -481,6 +481,50 @@ def cmd_rag_embed(args) -> int:
     return 0
 
 
+def cmd_rag_maintain(args) -> int:
+    from pathlib import Path as _P
+
+    from .hygiene import maintain
+    from .lessons import load_store
+    from .raglog import lesson_id
+
+    report = maintain(log_path=_P(args.log) if args.log else None,
+                      apply=args.apply,
+                      dedupe_threshold=args.dedupe_threshold,
+                      decay_games=args.decay_games)
+    store = load_store()
+    titles = {lesson_id(rec.lesson): (rec.title or rec.lesson[:60])
+              for rec in store}
+
+    stat_rows = [{"id": lid, "title": titles.get(lid, "(archived)"),
+                  "fires": s["times_fired"], "games": s["games_fired"],
+                  "corpus": s["games_in_corpus"], "won": s["won_when_fired"],
+                  "applied": s["applied"], "last_fired": s["last_fired"] or ""}
+                 for lid, s in report["stats"].items()]
+    stat_rows.sort(key=lambda r: (-r["fires"], r["id"]))
+    dupe_rows = [{"similarity": d["similarity"], "keep": d["keep"],
+                  "keep_title": d["keep_title"], "drop": d["drop"],
+                  "drop_title": d["drop_title"]} for d in report["duplicates"]]
+    sections = [
+        (f"Per-lesson stats ({report['lessons']} lessons)", stat_rows),
+        ("Near-duplicates (keep <- drop)", dupe_rows),
+        (f"Decay candidates (0 fires in >={args.decay_games} games)", report["decayed"]),
+        ("Headline candidates (for the next post-game synthesis)",
+         report["headline_candidates"]),
+    ]
+    for title, rows in sections:
+        print(f"## {title}")
+        print(stats_mod.format_table(rows))
+        print()
+    if args.apply:
+        print(f"APPLIED: {report.get('archived_count', 0)} archived, "
+              f"{report.get('remaining', report['lessons'])} remain; stats stamped.")
+    else:
+        print("DRY RUN — nothing written. Re-run with --apply to stamp stats "
+              "and archive the rows above.")
+    return 0
+
+
 def main(argv=None) -> int:
     logging.disable(logging.WARNING)  # hslog is chatty about known log quirks
 
@@ -535,6 +579,13 @@ def main(argv=None) -> int:
     p = sub.add_parser("rag-embed", help="Build/refresh the Tier-2 lesson embedding cache (fastembed, local)")
     p.add_argument("--status", action="store_true", help="Show cache coverage without embedding anything")
     p.set_defaults(func=cmd_rag_embed)
+
+    p = sub.add_parser("rag-maintain", help="KB hygiene: stamp per-lesson stats, merge near-dupes, archive dead knowledge (dry-run by default)")
+    p.add_argument("--apply", action="store_true", help="Write the store/archive; without this, report only")
+    p.add_argument("--decay-games", type=int, default=15, help="Archive lessons unfired across this many telemetry games (default 15)")
+    p.add_argument("--dedupe-threshold", type=float, default=0.6, help="Jaccard similarity to treat two lessons as duplicates (default 0.6)")
+    p.add_argument("--log", help="Retrieval log path (default: retrieval_log.jsonl next to the DB)")
+    p.set_defaults(func=cmd_rag_maintain)
 
     args = parser.parse_args(argv)
     try:

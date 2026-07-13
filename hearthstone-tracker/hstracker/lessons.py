@@ -57,6 +57,21 @@ class LessonTrigger(BaseModel):
         ])
 
 
+class LessonStats(BaseModel):
+    """Provenance and confidence, stamped onto the record by `hst
+    rag-maintain` (Phase 4) from retrieval telemetry — the knowledge carries
+    its own evidence. Absent on new records; refreshed on each maintenance
+    pass, never on the retrieval hot path."""
+
+    times_fired: int = 0  # distinct turns the lesson fired on (any tier)
+    games_fired: int = 0
+    games_in_corpus: int = 0  # telemetry games where the store contained it
+    won_when_fired: int = 0
+    applied: int = 0  # coach acked using it via --applied-lesson
+    last_fired: str | None = None  # ISO date of the newest fire
+    updated: str | None = None  # ISO date of the maintenance pass
+
+
 class Lesson(BaseModel):
     """One recorded misplay and the better line, with its firing trigger."""
 
@@ -69,6 +84,7 @@ class Lesson(BaseModel):
     matchup: str | None = None  # freeform context, e.g. "Aya Rogue vs Warrior"
     date: str | None = None  # ISO date of the game it came from
     source: str = "coach"  # coach | post-game | user
+    stats: LessonStats | None = None  # Phase-4 provenance; see LessonStats
 
     @field_validator("lesson", mode="after")
     @classmethod
